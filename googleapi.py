@@ -36,12 +36,20 @@ def get_document(doc): #Wholesale stolen from Google examples :)
 
 
 def get_sheet(sheet, r='', mode='ROWS'):
-    SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
     sheets_token = make_token(scope=SCOPES, cred_name="sheets")
     service = build('sheets', 'v4', credentials=sheets_token)
     if len(r) > 0:
         return service.spreadsheets().values().get(spreadsheetId=sheet, range=r, majorDimension=mode).execute()
     return service.spreadsheets().get(spreadsheetId=sheet).execute()
+
+def write_sheet(sheet, values, r='', mode="ROWS"):
+    SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+    sheets_token = make_token(scope=SCOPES, cred_name="sheets")
+    service = build('sheets', 'v4', credentials=sheets_token)
+
+    result = service.spreadsheets().values().update(spreadsheetId=sheet, range=r, valueInputOption="RAW", body={'values':values}).execute()
+
 
 if __name__ == '__main__':
     pass
