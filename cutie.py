@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit
 from PyQt5.QtCore import Qt, QEvent
 
-from cuter import Button, Window, Label, Input, Dropdown, Textarea #Pared down versions of ^, to reduce cluttered code
+from cuter import Application, Window, Button, Label, Input, Dropdown, Textarea #Pared down versions of ^, to reduce cluttered code
 from googleapi import get_sheet, write_sheet
 
 import re
@@ -28,7 +28,6 @@ pronouns = {
     "T":["they", "their" , "them", "theirs"]
 }
 
-
 report_sheet = "1ermre2z1PwXIXXEymu2aKHRJqtkCKyn2jxR_HpuIxGQ"
 s = get_sheet(report_sheet).get('sheets')
 
@@ -36,9 +35,7 @@ tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in s 
 entries = get_sheet(report_sheet, "{}!A2:D30".format(tabs[0][0])).get('values')
 sentences = get_sheet(report_sheet, "Sentences {}!A1:F30".format(tabs[0][0][0]), "COLUMNS").get('values')
 
-app = QApplication([])
-app.setApplicationName("Report Card Generator")
-
+app = Application("Report Card Generator")
 main_window = Window("Report Card Generator", 0, 0, 1000, 750)
 
 class_label = Label(main_window, "Class: ", main_window.width()/2.5, 15)
@@ -61,8 +58,7 @@ for entry in sentences:
         )
         count+=1
 
-report_area = Textarea(main_window, entries[0][3] if len(entries) >= 4 else " ", 0, 450, main_window.width(), 250)
-
+report_area = Textarea(main_window, (entries[0][3] if len(entries[0]) >= 4 else ""), 0, 450, main_window.width(), 250)
 generate_button = Button(main_window, "Generate", main_window.width()/2 - 20, 410)
 submit_button = Button(main_window, "Submit", main_window.width()/2 - 20, 710)
 
@@ -71,12 +67,10 @@ def update_entries():
     global name_dropdown
 
     en = get_sheet(report_sheet, "{}!A2:D30".format((class_dropdown.currentText())))
-
     entries = en.get('values')
 
-    name_dropdown.deleteLater()
-    name_dropdown = Dropdown(main_window, name_label.x() + name_label.width(), name_label.y() - 0.25*name_label.height(), [e[0] for e in entries])
-    name_dropdown.currentIndexChanged.connect(update_report)
+    name_dropdown.clear()
+    name_dropdown.addItems([e[0] for e in entries])
     update_report()
 
 def update_report():
@@ -86,8 +80,7 @@ def update_report():
     global name_dropdown
 
     gender_label.setText("Gender: " + entries[name_dropdown.currentIndex()][2])
-    report_area.deleteLater()
-    report_area = Textarea(main_window, entries[name_dropdown.currentIndex()][3] if len(entries) >= 4 else "", 0, 450, main_window.width(), 250)
+    report_area.setText(entries[name_dropdown.currentIndex()][3] if len(entries[name_dropdown.currentIndex()]) >= 4 else "")
 
 def update_cell():
     write_sheet(report_sheet, [[report_area.toPlainText()]], "{}!D{}".format(class_dropdown.currentText(), name_dropdown.currentIndex()+2))

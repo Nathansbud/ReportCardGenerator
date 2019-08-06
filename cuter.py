@@ -2,6 +2,11 @@ from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdi
 from PyQt5.QtCore import Qt, QEvent
 from sys import exit
 
+class Application(QApplication):
+    def __init__(self, name):
+        super(Application, self).__init__([])
+        self.setApplicationName(name)
+
 class Window(QWidget):
     def __init__(self, name, x, y, w, h):
         super(Window, self).__init__()
@@ -14,13 +19,13 @@ class Window(QWidget):
         if event.key() == Qt.Key_Escape:
             exit()
 
+
 class Button(QPushButton):
     def __init__(self, window, text, x, y):
         super(Button, self).__init__(window)
         self.setText(text)
         self.move(x, y)
         self.show()
-
 
 class Label(QLabel):
     def __init__(self, window, text, x, y):
