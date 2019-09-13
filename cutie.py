@@ -1,19 +1,10 @@
+import re
+
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit
 from PyQt5.QtCore import Qt, QEvent
 
 from cuter import Application, Window, Button, Label, Input, Dropdown, Textarea #Pared down versions of ^, to reduce cluttered code
 from googleapi import get_sheet, write_sheet
-
-import re
-
-# class Student:
-#     def __init__(self, first_name, last_name, gender, report):
-#         self.first_name = first_name
-#         self.last_name = last_name
-#         self.gender = gender
-#         self.report = report
-#
-# students = []
 
 '''
     First Name: A
@@ -32,8 +23,8 @@ report_sheet = "1ermre2z1PwXIXXEymu2aKHRJqtkCKyn2jxR_HpuIxGQ"
 s = get_sheet(report_sheet).get('sheets')
 
 tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in s if not tab['properties']['title'].startswith("Sentences")]
-entries = get_sheet(report_sheet, "{}!A2:D30".format(tabs[0][0])).get('values')
-sentences = get_sheet(report_sheet, "Sentences {}!A1:F30".format(tabs[0][0][0]), "COLUMNS").get('values')
+entries = get_sheet(report_sheet, "{}!A2:Z30".format(tabs[0][0])).get('values')
+sentences = get_sheet(report_sheet, "Sentences {}!A1:Z30".format(tabs[0][0][0]), "COLUMNS").get('values')
 
 app = Application("Report Card Generator")
 main_window = Window("Report Card Generator", 0, 0, 1000, 750)
@@ -52,15 +43,45 @@ sentence_dropdown = []
 count = 0
 for entry in sentences:
     if len(entry) > 1:
-        sentence_label.append(Label(main_window, "Sentence " + str(count+1) + ": ", 50, 125+25*count))
-        sentence_dropdown.append(
-            Dropdown(main_window, sentence_label[count].x() + sentence_label[count].width(), sentence_label[count].y() - 0.25*sentence_label[count].height(), entry[1:])
-        )
-        count+=1
+        pl = Label(main_window, "Sentence " + str(count + 1) + ": ", 50, 125 + 25 * count)
+        sentence_label.append(
+            pl)  # This is on 2 lines rather than one as a parent variable must exist for C++ binding to correctly function
+        pd = Dropdown(main_window, sentence_label[count].x() + sentence_label[count].width(),
+                      sentence_label[count].y() - 0.25 * sentence_label[count].height(), entry[1:])
+        sentence_dropdown.append(pd)
+        count += 1
 
 report_area = Textarea(main_window, (entries[0][3] if len(entries[0]) >= 4 else ""), 0, 450, main_window.width(), 250)
 generate_button = Button(main_window, "Generate", main_window.width()/2 - 20, 410)
 submit_button = Button(main_window, "Submit", main_window.width()/2 - 20, 710)
+
+# def update_sentences():
+#     global sentence_label
+#     global sentence_dropdown
+#     global class_dropdown
+#
+#     sentences = get_sheet(report_sheet, "Sentences {}!A1:Z30".format(grade), "COLUMNS").get('values')
+#
+#     if len(sentence_label) > 0:
+#         for l in sentence_label:
+#             sentence_label.remove(l)
+#             l.deleteLater()
+#     if len(sentence_dropdown) > 0:
+#         for d in sentence_dropdown:
+#             sentence_dropdown.remove(d)
+#             d.deleteLater()
+#
+#     # count = 0
+#     # for entry in sentences:
+#     #     if len(entry) > 1:
+#     #         pl = Label(main_window, "Sentence " + str(count + 1) + ": ", 50, 125 + 25 * count)
+#     #         sentence_label.append(pl) #This is on 2 lines rather than one as a parent variable must exist for C++ binding to correctly function
+#     #         pd = Dropdown(main_window, sentence_label[count].x() + sentence_label[count].width(),
+#     #                      sentence_label[count].y() - 0.25 * sentence_label[count].height(), entry[1:])
+#     #         sentence_dropdown.append(pd)
+#     #         count += 1
+#
+# update_sentences()
 
 def update_entries():
     global entries
@@ -71,7 +92,10 @@ def update_entries():
 
     name_dropdown.clear()
     name_dropdown.addItems([e[0] for e in entries])
+
     update_report()
+    update_sentences()
+
 
 def update_report():
     global entries
