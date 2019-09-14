@@ -1,4 +1,5 @@
 import re
+import sys
 
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit
 from PyQt5.QtCore import Qt, QEvent
@@ -21,6 +22,8 @@ pronouns = {
 
 report_sheet = "1ermre2z1PwXIXXEymu2aKHRJqtkCKyn2jxR_HpuIxGQ"
 s = get_sheet(report_sheet).get('sheets')
+
+
 
 tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in s if not tab['properties']['title'].startswith("Sentences")]
 entries = get_sheet(report_sheet, "{}!A2:Z30".format(tabs[0][0])).get('values')
@@ -94,7 +97,6 @@ def update_entries():
     name_dropdown.addItems([e[0] for e in entries])
 
     update_report()
-    update_sentences()
 
 
 def update_report():
