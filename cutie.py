@@ -46,8 +46,7 @@ count = 0
 for entry in sentences:
     if len(entry) > 1:
         pl = Label(main_window, "Sentence " + str(count + 1) + ": ", 50, 125 + 25 * count)
-        sentence_label.append(
-            pl)  # This is on 2 lines rather than one as a parent variable must exist for C++ binding to correctly function
+        sentence_label.append(pl)  # This is on 2 lines rather than one as a parent variable must exist for C++ binding to correctly function
         pd = Dropdown(main_window, sentence_label[count].x() + sentence_label[count].width(),
                       sentence_label[count].y() - 0.25 * sentence_label[count].height(), entry[1:])
         sentence_dropdown.append(pd)

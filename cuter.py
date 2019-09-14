@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QStackedWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QListWidget, QColorDialog
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QStackedWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QListWidget, QColorDialog, QCheckBox
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont, QFocusEvent
 
@@ -104,6 +104,13 @@ class Textarea(QTextEdit):
         self.setGeometry(x, y, w, h)
         self.setText(content)
         self.setTabChangesFocus(True)
+        self.show()
+
+class Checkbox(QCheckBox):
+    def __init__(self, window, x, y):
+        super(Checkbox, self).__init__(window)
+        self.setChecked(True)
+        self.move(x, y)
         self.show()
 
 class ColorSelector(QColorDialog):
