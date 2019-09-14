@@ -1,8 +1,13 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QStackedWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QListWidget, QColorDialog
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont, QFocusEvent
 
 from sys import exit
+import os
+import json
+
+with open(os.path.join(os.path.dirname(__file__), "prefs" + os.sep + "config.json")) as jf:
+    prefs = json.load(jf)
 
 class Application(QApplication):
     def __init__(self, name):
@@ -10,34 +15,31 @@ class Application(QApplication):
         self.setApplicationName(name)
 
 class Window(QWidget):
-    def __init__(self, name, x, y, w, h):
+    def __init__(self, name, x, y, w, h, shown=False):
         super(Window, self).__init__()
         self.setWindowTitle(name)
         self.setGeometry(x, y, w, h)
         self.setFixedSize(self.size())
-        self.setUI(bg_color="#450000")
+        self.setUI(bg_color=prefs['bg_color'])
+        if shown:
+            self.show()
 
-        self.show()
-
-    def setUI(self, bg_color=None, text_color=None):
+    def setUI(self, bg_color=None, txt_color=None):
         palette = self.palette()
         if bg_color:
             self.autoFillBackground()
             background_color = QColor()
             background_color.setNamedColor(bg_color)
             palette.setColor(QPalette.Background, background_color)
-        if text_color:
+        if txt_color:
             text_color = QColor()
-            text_color.setNamedColor(text_color)
+            text_color.setNamedColor(txt_color)
             palette.setColor(QPalette.Text, text_color)
-
         self.setPalette(palette)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             exit()
-        # if event.key() == Qt.Key_Tab:
-        #     print(self.focusWidget())
 
 class Button(QPushButton):
     def __init__(self, window, text, x, y):
@@ -45,6 +47,15 @@ class Button(QPushButton):
         self.setText(text)
         self.move(x, y)
         self.show()
+        self.setFocusPolicy(Qt.StrongFocus)
+
+    def keyPressEvent(self, event) -> None:
+        if event.type() == QEvent.KeyPress:
+            if event.key() == Qt.Key_Enter or event.key() == Qt.Key_Return:
+                self.click()
+
+        if event.key() == Qt.Key_Escape:
+            exit()
 
 class Label(QLabel):
     def __init__(self, window, text, x, y):
@@ -53,6 +64,14 @@ class Label(QLabel):
         self.move(x, y)
         self.setupFont()
         self.show()
+        self.setColor(prefs['text_color'])
+
+    def setColor(self, color):
+        palette = self.palette()
+        text_color = QColor()
+        text_color.setNamedColor(color)
+        palette.setColor(QPalette.WindowText, text_color)
+        self.setPalette(palette)
 
     def setupFont(self, size=24, font_family="Arial"):
         self.setFont(QFont(font_family, size, QFont.Bold))
@@ -75,10 +94,27 @@ class Dropdown(QComboBox):
         if event.type() == QEvent.KeyPress:
             if event.key() == Qt.Key_Enter or event.key() == Qt.Key_Return:
                 self.showPopup()
+        if event.key() == Qt.Key_Escape:
+            exit()
+
 
 class Textarea(QTextEdit):
     def __init__(self, window, content, x, y, w, h):
         super(Textarea, self).__init__(window)
         self.setGeometry(x, y, w, h)
         self.setText(content)
+        self.setTabChangesFocus(True)
         self.show()
+
+class ColorSelector(QColorDialog):
+    def __init__(self, window, corresponds):
+        super(ColorSelector, self).__init__(window)
+        self.corresponds = corresponds
+
+    def openColorDialog(self):
+        color = QColorDialog.getColor()
+        if color.isValid():
+            if self.corresponds == "BG":
+                self.parentWidget().setUI(bg_color=color.name())
+            elif self.corresponds == "TXT":
+                self.parentWidget().setUI(text_color=color.name())

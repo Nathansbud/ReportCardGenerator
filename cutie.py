@@ -1,8 +1,7 @@
 import re
 import sys
-
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit
-from PyQt5.QtCore import Qt, QEvent
+import os
+import json
 
 from cuter import Application, Window, Button, Label, Input, Dropdown, Textarea #Pared down versions of ^, to reduce cluttered code
 from googleapi import get_sheet, write_sheet
@@ -24,13 +23,12 @@ report_sheet = "1ermre2z1PwXIXXEymu2aKHRJqtkCKyn2jxR_HpuIxGQ"
 s = get_sheet(report_sheet).get('sheets')
 
 
-
 tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in s if not tab['properties']['title'].startswith("Sentences")]
 entries = get_sheet(report_sheet, "{}!A2:Z30".format(tabs[0][0])).get('values')
 sentences = get_sheet(report_sheet, "Sentences {}!A1:Z30".format(tabs[0][0][0]), "COLUMNS").get('values')
 
 app = Application("Report Card Generator")
-main_window = Window("Report Card Generator", 0, 0, 1000, 750)
+main_window = Window("Report Card Generator", 0, 0, 1000, 750, True)
 
 class_label = Label(main_window, "Class: ", main_window.width()/2.5, 15)
 class_dropdown = Dropdown(main_window, class_label.x() + class_label.width(), class_label.y() - 0.25*class_label.height(), [tab[0] for tab in tabs])
@@ -42,6 +40,7 @@ gender_label = Label(main_window, "Gender: " + entries[0][2], 50, 100)
 
 sentence_label = []
 sentence_dropdown = []
+
 
 count = 0
 for entry in sentences:
@@ -144,6 +143,7 @@ class_dropdown.currentIndexChanged.connect(update_entries)
 name_dropdown.currentIndexChanged.connect(update_report)
 generate_button.clicked.connect(generate_report)
 submit_button.clicked.connect(update_cell)
+
 
 if __name__ == '__main__':
     app.exec()
