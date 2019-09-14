@@ -1,6 +1,8 @@
 from threading import Thread
 
-from cuter import Application, Window, Button, Label, Input, Dropdown, Textarea, ColorSelector, Checkbox #Pared down versions of ^, to reduce cluttered code
+from PyQt5.QtWidgets import QLineEdit, QInputDialog
+
+from cuter import Application, Window, Button, Label, Input, Dropdown, Textarea, ColorSelector, Checkbox, Prompt #Pared down versions of ^, to reduce cluttered code
 from googleapi import get_sheet, write_sheet
 
 pronouns = {
@@ -72,15 +74,74 @@ class Student:
 
 #Combination Label, Dropdown, & Checkbox
 class SentenceGroup:
-    def __init__(self, label, x, y, options):
+    def __init__(self, label, x, y, options, index):
+        self.index = index
+
+        self.x = x
+        self.y = y
+
         self.checkbox = Checkbox(main_window, x, y)
         self.label = Label(main_window, label, x + self.checkbox.width(), y)
         self.dropdown = Dropdown(main_window, self.label.x() + self.label.width(), y, options)
+
+        self.add = Button(main_window, "+", self.dropdown.x() + self.dropdown.width(), y, False)
+        self.remove = Button(main_window, "-", self.add.x() + self.add.width(), y, False)
+        self.change = Button(main_window, "∆", self.remove.x() + self.remove.width(), y, False)
+
+        self.add.clicked.connect(self.addOption)
+        self.remove.clicked.connect(self.removeOption)
+        self.change.clicked.connect(self.editOption)
 
     def delete(self):
         self.checkbox.deleteLater()
         self.label.deleteLater()
         self.dropdown.deleteLater()
+        self.add.deleteLater()
+        self.remove.deleteLater()
+        self.change.deleteLater()
+
+    def move(self, x, y):
+        self.checkbox.move(x, y)
+        self.label.move(x + self.checkbox.x(), y)
+        self.dropdown.move(x + self.label.x(), y)
+        self.add.move(x + self.dropdown.x(), y)
+        self.remove.move(x + self.add.x(), y)
+        self.change.move(x + self.remove.x(), y)
+
+    def addOption(self):
+        text, ok = QInputDialog(main_window).getText(main_window, "Add Option", "Sentence", QLineEdit.Normal, "")
+        if ok and len(text) > 0:
+            self.dropdown.addItem(text)
+
+    def removeOption(self):
+        if self.dropdown.count() > 0:
+            item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())]
+            item, ok = QInputDialog(main_window).getItem(main_window, "Remove Option", "Option:", item_list, 0, False)
+            if ok and item:
+                item_list.remove(item)
+                self.dropdown.clear()
+                self.dropdown.addItems(item_list)
+                if self.dropdown.count() == 0:
+                    self.checkbox.setChecked(False)
+        else:
+            global sentences
+            sentences.remove(self)
+            self.delete()
+
+            for i in range(0, len(sentences)):
+                sentences[i].move(sentences[i].x, sentences[i].y - 25)
+                sentences[i].label.setText("S{}".format(i+1))
+
+    def editOption(self):
+
+        pass
+
+def add_sentences():
+    class_students[student_dropdown.currentIndex()].report = report_area.toPlainText()
+    submit_thread = Thread(target=class_students[student_dropdown.currentIndex()].submit_report)
+    submit_thread.start()
+    pass
+
 
 def fill_class_data():
     global class_students
@@ -150,11 +211,12 @@ def update_sentences():
             for entry in current_sentences:
                 if len(entry) > 1:
                     sentences.append(
-                        SentenceGroup(entry[0], 50, 125 + 25 * count, entry[1:])
+                        SentenceGroup("S{}:".format(count+1), 50, 125 + 25 * count, entry[1:], count)
                     )
                     count += 1
             break
     update_tab_order()
+
 
 def update_report():
     global class_students

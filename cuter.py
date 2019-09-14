@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog, QCheckBox
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog, QCheckBox, QInputDialog
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont
 
@@ -81,6 +81,10 @@ class Input(QLineEdit):
         super(Input, self).__init__(window)
         self.move(x, y)
         self.show()
+
+# class Prompt(QInputDialog):
+#     def __init__(self, window):
+#         super(Prompt, self).__init__(window)
 
 class Dropdown(QComboBox):
     def __init__(self, window, x, y, options):
