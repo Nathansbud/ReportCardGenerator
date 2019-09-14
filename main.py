@@ -322,8 +322,5 @@ def replace_generics(preset, name, p):
 
     return preset.strip()
 
-
-
-
 if __name__ == "__main__":
     app.exec()

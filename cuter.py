@@ -6,7 +6,8 @@ from sys import exit
 import os
 import json
 
-with open(os.path.join(os.path.dirname(__file__), "prefs" + os.sep + "config.json")) as jf:
+pref_file = os.path.join(os.path.dirname(__file__), "prefs" + os.sep + "config.json")
+with open(pref_file) as jf:
     prefs = json.load(jf)
 
 class Application(QApplication):
@@ -125,9 +126,17 @@ class ColorSelector(QColorDialog):
         self.corresponds = corresponds
 
     def openColorDialog(self):
+        global prefs
+        global pref_file
+
         color = QColorDialog.getColor()
         if color.isValid():
             if self.corresponds == "BG":
                 self.parentWidget().setUI(bg_color=color.name())
+                prefs["bg_color"] = color.name()
             elif self.corresponds == "TXT":
                 self.parentWidget().setUI(text_color=color.name())
+                prefs["text_color"] = color.name()
+            with open(pref_file, 'w+') as jf:
+                json.dump(prefs, jf, indent=4)
+
