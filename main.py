@@ -1,11 +1,4 @@
-import re
-import requests
-import os
-import json
-from threading import Thread, ThreadError
-
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog
-from PyQt5.QtCore import Qt, QEvent
+from threading import Thread
 
 from cuter import Application, Window, Button, Label, Input, Dropdown, Textarea, ColorSelector, Checkbox #Pared down versions of ^, to reduce cluttered code
 from googleapi import get_sheet, write_sheet
@@ -49,34 +42,33 @@ student_dropdown = Dropdown(
     []
 )
 
+sentences = [] #Should be populated with SentenceGroup elements
 
 generate_button = Button(main_window, "Generate", main_window.width()/2 - 20, 410)
 report_area = Textarea(main_window, "", 0, 450, main_window.width(), 250)
 submit_button = Button(main_window, "Submit", main_window.width()/2 - 20, 710)
 
 color_selector = ColorSelector(main_window, "BG")
-color_button = Button(main_window, "Colors", main_window.width() - 150, student_label.y())
+color_button = Button(main_window, "Colors", main_window.width() - 150, student_label.y(), False)
 color_button.clicked.connect(color_selector.openColorDialog)
 
 
 class Student:
-    def __init__(self, first_name, last_name, gender, report, classroom, row_offset):
+    def __init__(self, first_name, last_name, gender, report, classroom, offset):
         self.first_name = first_name
         self.last_name = last_name
         self.report = report
         self.gender = gender
         self.classroom = classroom
-        self.row_offset = row_offset
+        self.offset = offset
 
 
     def submit_report(self, report=None):
         global report_sheet
         global report_column
-        #global report_cell
-        if not report: #Cannot pass self.params as arguments to a function, as self is defined in that scope
+        if not report:
             report = self.report
-
-        write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.row_offset)))
+        write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.offset)))
 
 #Combination Label, Dropdown, & Checkbox
 class SentenceGroup:
@@ -84,14 +76,11 @@ class SentenceGroup:
         self.checkbox = Checkbox(main_window, x, y)
         self.label = Label(main_window, label, x + self.checkbox.width(), y)
         self.dropdown = Dropdown(main_window, self.label.x() + self.label.width(), y, options)
-        self.visible = True
 
-    @property
-    def visible(self):
-        return self.visible
-    @visible.setter
-    def visible(self, visible):
-        self.visible = visible
+    def delete(self):
+        self.checkbox.deleteLater()
+        self.label.deleteLater()
+        self.dropdown.deleteLater()
 
 def fill_class_data():
     global class_students
@@ -120,7 +109,52 @@ def fill_class_data():
         ro+=1
 
     student_dropdown.addItems([student.first_name + " " + student.last_name for student in class_students])
+    if class_dropdown.history[-1][0] != class_dropdown.currentText()[0]:
+        update_sentences()
+    class_dropdown.history.append(class_dropdown.currentText())
     update_report()
+
+def update_tab_order():
+    global sentences
+    global class_dropdown
+    global student_dropdown
+    global report_area
+
+    main_window.setTabOrder(class_dropdown, student_dropdown)
+    if len(sentences) > 0:
+        main_window.setTabOrder(student_dropdown, sentences[0].dropdown)
+        count = 0
+        if len(sentences) > 1:
+            for sentence in sentences[:-1]:
+                main_window.setTabOrder(sentences[count].dropdown, sentences[count+1].dropdown)
+                count+=1
+        main_window.setTabOrder(sentences[count].dropdown, generate_button)
+    else:
+        main_window.setTabOrder(student_dropdown, generate_button)
+    main_window.setTabOrder(generate_button, report_area)
+    main_window.setTabOrder(report_area, submit_button)
+
+def update_sentences():
+    global sentences
+    global sentence_tabs
+    global class_dropdown
+    
+    for tab in sentence_tabs:
+        if tab[0][-1] == class_dropdown.currentText()[0]:
+            for elem in sentences:
+                elem.delete()
+            sentences = []
+            
+            current_sentences = get_sheet(report_sheet, "{}!A1:Z1000".format("Sentences " + str(class_dropdown.currentText()[0])), "COLUMNS").get('values')
+            count = 0
+            for entry in current_sentences:
+                if len(entry) > 1:
+                    sentences.append(
+                        SentenceGroup(entry[0], 50, 125 + 25 * count, entry[1:])
+                    )
+                    count += 1
+            break
+    update_tab_order()
 
 def update_report():
     global class_students
@@ -128,10 +162,6 @@ def update_report():
     global report_area
 
     report_area.setText(class_students[student_dropdown.currentIndex()].report)
-
-
-def generate_report():
-    report_area.setText("")
 
 def send_report():
     global class_students
@@ -141,11 +171,28 @@ def send_report():
     submit_thread = Thread(target=class_students[student_dropdown.currentIndex()].submit_report)
     submit_thread.start()
 
+def generate_report():
+    global sentences
+    global report_area
+    global student_dropdown
+    global class_students
+
+    report_area.setText("")
+    for sentence in sentences:
+        if sentence.checkbox.isChecked():
+            report_area.setText(report_area.toPlainText() +
+                replace_generics(
+                    sentence.dropdown.currentText(),
+                    class_students[student_dropdown.currentIndex()].first_name,
+                    class_students[student_dropdown.currentIndex()].gender
+                ) + " ")
+            
 fill_class_data()
 
 class_dropdown.currentIndexChanged.connect(fill_class_data)
 student_dropdown.currentIndexChanged.connect(update_report)
 submit_button.clicked.connect(send_report)
+generate_button.clicked.connect(generate_report)
 
 def replace_generics(preset, name, p):
     if len(p) == 0: p = "T"
@@ -169,6 +216,7 @@ def replace_generics(preset, name, p):
             preset = preset[0:index+2] + preset[index+2].upper() + preset[index+3:]
 
     return preset.strip()
+
 
 
 

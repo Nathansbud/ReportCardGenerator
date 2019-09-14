@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QStackedWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QListWidget, QColorDialog, QCheckBox
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog, QCheckBox
 from PyQt5.QtCore import Qt, QEvent
-from PyQt5.QtGui import QColor, QPalette, QFont, QFocusEvent
+from PyQt5.QtGui import QColor, QPalette, QFont
 
 from sys import exit
 import os
@@ -42,12 +42,12 @@ class Window(QWidget):
             exit()
 
 class Button(QPushButton):
-    def __init__(self, window, text, x, y):
+    def __init__(self, window, text, x, y, focusOnTab=True):
         super(Button, self).__init__(window)
         self.setText(text)
         self.move(x, y)
         self.show()
-        self.setFocusPolicy(Qt.StrongFocus)
+        if focusOnTab: self.setFocusPolicy(Qt.StrongFocus)
 
     def keyPressEvent(self, event) -> None:
         if event.type() == QEvent.KeyPress:
@@ -88,6 +88,8 @@ class Dropdown(QComboBox):
         self.move(x, y)
         self.setFocusPolicy(Qt.StrongFocus)
         self.addItems(options)
+        self.lastSelected = " "
+        self.history = [" "]
         self.show()
 
     def keyPressEvent(self, event) -> None:
