@@ -43,12 +43,28 @@ def get_sheet(sheet, r='', mode='ROWS'):
         return service.spreadsheets().values().get(spreadsheetId=sheet, range=r, majorDimension=mode).execute()
     return service.spreadsheets().get(spreadsheetId=sheet).execute()
 
-def write_sheet(sheet, values, r='', mode="ROWS"):
+def write_sheet(sheet, values, r='', mode="ROWS", remove=None, tab_id=None):
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
     sheets_token = make_token(scope=SCOPES, cred_name="sheets")
     service = build('sheets', 'v4', credentials=sheets_token)
-
-    result = service.spreadsheets().values().update(spreadsheetId=sheet, range=r, valueInputOption="RAW", body={'values':values}).execute()
+    if remove is None:
+        result = service.spreadsheets().values().update(spreadsheetId=sheet, range=r, valueInputOption="RAW", body={
+            'values':values,
+            'majorDimension':mode
+        }).execute()
+    else:
+        result = service.spreadsheets().batchUpdate(spreadsheetId=sheet, body=
+        {"requests": {
+                "deleteRange": {
+                    "range": {
+                        "sheetId": tab_id,
+                        "startColumnIndex": remove[0],
+                        "endColumnIndex": remove[1]
+                    },
+                    "shiftDimension": "COLUMNS"
+                }
+            }
+        }).execute()
 
 
 if __name__ == '__main__':
