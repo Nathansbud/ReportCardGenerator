@@ -24,8 +24,8 @@ def make_token(scope, cred_name):
         # Save the credentials for the next run
         with open(token_path, 'wb') as token:
             pickle.dump(creds, token)
-
     return creds
+
 
 def get_sheet(sheet, r='', mode='ROWS'):
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
@@ -57,6 +57,7 @@ def write_sheet(sheet, values, r='', mode="ROWS", remove=None, tab_id=None):
                 }
             }
         }).execute()
+
 
 if __name__ == '__main__':
     pass

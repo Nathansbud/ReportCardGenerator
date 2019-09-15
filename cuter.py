@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog, QCheckBox, QInputDialog
+from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog, QCheckBox, QInputDialog
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont
 
@@ -11,9 +11,18 @@ with open(pref_file) as jf:
     prefs = json.load(jf)
 
 class Application(QApplication):
-    def __init__(self, name):
+    def __init__(self, name, useStyle):
         super(Application, self).__init__([])
         self.setApplicationName(name)
+        self.useStyle = useStyle
+        self.setStyles()
+
+    def setStyles(self):
+        if self.useStyle:
+            self.setStyleSheet(f'''
+                QPushButton, QComboBox, QLabel {{color: {prefs['txt_color']};}}
+                QWidget#appWindow {{background: {prefs['bg_color']};}}
+            ''')
 
 class Window(QWidget):
     def __init__(self, name, x, y, w, h, shown=False):
@@ -21,9 +30,11 @@ class Window(QWidget):
         self.setWindowTitle(name)
         self.setGeometry(x, y, w, h)
         self.setFixedSize(self.size())
-        self.setUI(bg_color=prefs['bg_color'])
+        self.setUI(bg_color=prefs['bg_color'], txt_color=prefs['txt_color'])
+        # self.setUnifiedTitleAndToolBarOnMac(True)
         if shown:
             self.show()
+
 
     def setUI(self, bg_color=None, txt_color=None):
         palette = self.palette()
@@ -36,7 +47,10 @@ class Window(QWidget):
             text_color = QColor()
             text_color.setNamedColor(txt_color)
             palette.setColor(QPalette.Text, text_color)
+            palette.setColor(QPalette.WindowText, text_color)
+            palette.setColor(QPalette.ButtonText, text_color)
         self.setPalette(palette)
+
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
@@ -68,14 +82,6 @@ class Label(QLabel):
         self.move(x, y)
         self.setupFont()
         self.show()
-        self.setColor(prefs['text_color'])
-
-    def setColor(self, color):
-        palette = self.palette()
-        text_color = QColor()
-        text_color.setNamedColor(color)
-        palette.setColor(QPalette.WindowText, text_color)
-        self.setPalette(palette)
 
     def setupFont(self, size=24, font_family="Arial"):
         self.setFont(QFont(font_family, size, QFont.Bold))
@@ -86,10 +92,6 @@ class Input(QLineEdit):
         self.move(x, y)
         self.show()
 
-# class Prompt(QInputDialog):
-#     def __init__(self, window):
-#         super(Prompt, self).__init__(window)
-
 class Dropdown(QComboBox):
     def __init__(self, window, x, y, options):
         super(Dropdown, self).__init__(window)
@@ -98,10 +100,7 @@ class Dropdown(QComboBox):
         self.addItems(options)
         self.lastSelected = " "
         self.history = [" "]
-        # self.setEditable(True)
-        # self.setInsertPolicy(QComboBox.InsertAtCurrent)
         self.show()
-
 
     def keyPressEvent(self, event) -> None:
         if event.type() == QEvent.KeyPress:
@@ -136,14 +135,15 @@ class ColorSelector(QColorDialog):
         global prefs
         global pref_file
 
-        color = QColorDialog.getColor()
+        color = QColorDialog.getColor(title=self.corresponds + " Color")
         if color.isValid():
             if self.corresponds == "BG":
-                self.parentWidget().setUI(bg_color=color.name())
                 prefs["bg_color"] = color.name()
+                if QApplication.instance().useStyle:
+                    QApplication.instance().setStyles()
             elif self.corresponds == "TXT":
-                self.parentWidget().setUI(text_color=color.name())
-                prefs["text_color"] = color.name()
+                prefs["txt_color"] = color.name()
+                QApplication.instance().setStyles()
             with open(pref_file, 'w+') as jf:
                 json.dump(prefs, jf, indent=4)
 

@@ -24,10 +24,9 @@ sentence_tabs = [tab for tab in all_tabs if tab[0].startswith("Sentences")]
 
 class_students = []
 
-app = Application("Report Card Generator")
-
-
+app = Application("Report Card Generator", useStyle=True)
 main_window = Window("Report Card Generator", 0, 0, 1000, 750, True)
+main_window.setObjectName("appWindow")
 
 class_label = Label(main_window, "Class: ", main_window.width() / 2.5, 15)
 class_dropdown = Dropdown(
@@ -60,9 +59,16 @@ generate_button = Button(main_window, "Generate", main_window.width()/2 - 20, 41
 report_area = Textarea(main_window, "", 0, 450, main_window.width(), 250)
 submit_button = Button(main_window, "Submit", main_window.width()/2 - 20, 710)
 
-color_selector = ColorSelector(main_window, "BG")
-color_button = Button(main_window, "Colors", main_window.width() - 150, student_label.y(), False)
-color_button.clicked.connect(color_selector.openColorDialog)
+color_selector = [
+    ColorSelector(main_window, "BG"),
+    ColorSelector(main_window, "TXT")
+]
+
+bgcolor_button = Button(main_window, "BG Color", main_window.width() - 150, student_label.y(), False)
+bgcolor_button.clicked.connect(color_selector[0].openColorDialog)
+
+txtcolor_button = Button(main_window, "Text Color", main_window.width() - 150, bgcolor_button.y() - bgcolor_button.height(), False)
+txtcolor_button.clicked.connect(color_selector[1].openColorDialog)
 
 refresh_button = Button(main_window, "Refresh", generate_button.x() + generate_button.width(), generate_button.y(), False)
 
@@ -267,7 +273,7 @@ def update_sentences():
             for elem in sentences:
                 elem.delete()
             sentences = []
-            
+            print("Called update sentences...")
             current_sentences = get_sheet(report_sheet, "{}!A1:Z1000".format("Sentences " + str(class_dropdown.currentText()[0])), "COLUMNS").get('values')
             count = 0
             ro = 0
