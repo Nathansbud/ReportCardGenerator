@@ -27,14 +27,6 @@ def make_token(scope, cred_name):
 
     return creds
 
-
-def get_document(doc): #Wholesale stolen from Google examples :)
-    SCOPES = ['https://www.googleapis.com/auth/documents.readonly']
-    docs_token = make_token(scope=SCOPES, cred_name="docs")
-    service = build('docs', 'v1', credentials=docs_token)
-    return service.documents().get(documentId=doc).execute()
-
-
 def get_sheet(sheet, r='', mode='ROWS'):
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
     sheets_token = make_token(scope=SCOPES, cred_name="sheets")
@@ -65,7 +57,6 @@ def write_sheet(sheet, values, r='', mode="ROWS", remove=None, tab_id=None):
                 }
             }
         }).execute()
-
 
 if __name__ == '__main__':
     pass

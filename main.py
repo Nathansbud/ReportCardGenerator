@@ -3,7 +3,7 @@ from math import floor
 
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QWidget
 from cuter import Application, Window, Button, Label, Input, Dropdown, Textarea, ColorSelector, Checkbox #Pared down versions of ^, to reduce cluttered code
-from googleapi import get_sheet, write_sheet
+from google_sheets import get_sheet, write_sheet
 
 '''
 Todo:
@@ -90,7 +90,10 @@ class Student:
         write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.offset)))
 
     def get_pronouns(self):
-        return Student.pronouns[self.gender]
+        if self.gender:
+            return Student.pronouns[self.gender]
+        else:
+            return Student.pronouns["T"]
 
 class SentenceGroup:
     def __init__(self, label, x, y, options, index):
@@ -346,8 +349,9 @@ def generate_report_from_preset():
     global preset_dropdown
 
     report_area.setText("")
-    for elem in preset_list[preset_dropdown.currentText()]:
-        report_area.setText(report_area.toPlainText() + replace_generics(elem.text) + " ")
+    if preset_dropdown.count() > 0:
+        for elem in preset_list[preset_dropdown.currentText()]:
+            report_area.setText(report_area.toPlainText() + replace_generics(elem.text) + " ")
 
 
 fill_class_data()
