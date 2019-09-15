@@ -5,11 +5,12 @@ from PyQt5.QtWidgets import QLineEdit, QInputDialog, QWidget
 from cuter import Application, Window, Button, Label, Input, Dropdown, Textarea, ColorSelector, Checkbox #Pared down versions of ^, to reduce cluttered code
 from googleapi import get_sheet, write_sheet
 
-pronouns = {
-    "M":["he", "his", "him", "his"],
-    "F":["she", "her" , "her", "hers"],
-    "T":["they", "their" , "them", "theirs"]
-}
+'''
+Todo:
+    - Rework program load model so that all data is loaded 
+    - Async/io on spreadsheet calls
+    - Hook-ins for presets (i.e. hooks into student grades)
+'''
 
 report_sheet = "1ermre2z1PwXIXXEymu2aKHRJqtkCKyn2jxR_HpuIxGQ"
 report_column = "D"
@@ -44,8 +45,16 @@ student_dropdown = Dropdown(
     []
 )
 
-sentences = [] #Should be populated with SentenceGroup elements
+preset_button = Button(main_window, "Generate Preset", student_dropdown.x() + student_dropdown.width(), student_dropdown.y())
+preset_dropdown = Dropdown(
+    main_window,
+    preset_button.x() + preset_button.width(),
+    preset_button.y(),
+    []
+)
+preset_list = {}
 
+sentences = [] #Should be populated with SentenceGroup elements
 
 generate_button = Button(main_window, "Generate", main_window.width()/2 - 20, 410)
 report_area = Textarea(main_window, "", 0, 450, main_window.width(), 250)
@@ -57,10 +66,13 @@ color_button.clicked.connect(color_selector.openColorDialog)
 
 refresh_button = Button(main_window, "Refresh", generate_button.x() + generate_button.width(), generate_button.y(), False)
 
-
-
-
 class Student:
+    pronouns = {
+        "M": ["he", "his", "him", "his"],
+        "F": ["she", "her", "her", "hers"],
+        "T": ["they", "their", "them", "theirs"]
+    }
+
     def __init__(self, first_name, last_name, gender, report, classroom, offset):
         self.first_name = first_name
         self.last_name = last_name
@@ -77,41 +89,30 @@ class Student:
             report = self.report
         write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.offset)))
 
-#Combination Label, Dropdown, & Checkbox
+    def get_pronouns(self):
+        return Student.pronouns[self.gender]
 
-class Preset(QWidget):
-    def __init__(self, name, x, y, options):
-        super(Preset, self).__init__(main_window)
-        self.name = name
-
-        self.x = x
-        self.y = y
-        self.button = Button(self, name, x, y)
-        self.options = options
-
-
-class SentenceGroup(QWidget):
+class SentenceGroup:
     def __init__(self, label, x, y, options, index):
-        super(SentenceGroup, self).__init__(main_window)
+
         self.index = index
 
         self.x = x
         self.y = y
 
-        self.checkbox = Checkbox(self, x, y)
-        self.label = Label(self, label, x + self.checkbox.width(), y)
-        self.dropdown = Dropdown(self, self.label.x() + self.label.width(), y, options)
+        self.checkbox = Checkbox(main_window, x, y)
+        self.label = Label(main_window, label, x + self.checkbox.width(), y)
+        self.dropdown = Dropdown(main_window, self.label.x() + self.label.width(), y, options)
 
-        self.add = Button(self, "+", self.dropdown.x() + self.dropdown.width(), y, False)
-        self.remove = Button(self, "-", self.add.x() + self.add.width(), y, False)
-        self.change = Button(self, "Edit", self.remove.x() + self.remove.width(), y, False)
+        self.add = Button(main_window, "+", self.dropdown.x() + self.dropdown.width(), y, False)
+        self.remove = Button(main_window, "-", self.add.x() + self.add.width(), y, False)
+        self.change = Button(main_window, "Edit", self.remove.x() + self.remove.width(), y, False)
 
         self.add.clicked.connect(self.addOption)
         self.remove.clicked.connect(self.removeOption)
         self.change.clicked.connect(self.editOption)
 
         self.manual_delete = False
-        self.show()
 
     def shift(self, x, y):
         self.checkbox.move(x, y)
@@ -121,8 +122,16 @@ class SentenceGroup(QWidget):
         self.remove.move(self.add.x() + self.add.width(), y)
         self.change.move(self.remove.x() + self.remove.width(), y)
 
+    def delete(self):
+        self.dropdown.deleteLater()
+        self.label.deleteLater()
+        self.checkbox.deleteLater()
+        self.add.deleteLater()
+        self.remove.deleteLater()
+        self.change.deleteLater()
+
     def addOption(self):
-        text, ok = QInputDialog(self).getText(self, "Add Option", "Sentence", QLineEdit.Normal, "")
+        text, ok = QInputDialog(main_window).getText(main_window, "Add Option", "Sentence", QLineEdit.Normal, "")
         if ok and len(text) > 0:
             self.dropdown.addItem(text)
 
@@ -132,7 +141,7 @@ class SentenceGroup(QWidget):
     def removeOption(self):
         if self.dropdown.count() > 0:
             item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())]
-            item, ok = QInputDialog(self).getItem(self, "Remove Option", "Option:", item_list, 0, False)
+            item, ok = QInputDialog(main_window).getItem(main_window, "Remove Option", "Option:", item_list, 0, False)
             if ok and item:
                 item_list.remove(item)
                 self.dropdown.clear()
@@ -144,7 +153,7 @@ class SentenceGroup(QWidget):
         else:
             global sentences
             sentences.remove(self)
-            self.deleteLater()
+            self.delete()
 
             for i in range(0, len(sentences)):
                 if sentences[i].index > self.index:
@@ -158,9 +167,9 @@ class SentenceGroup(QWidget):
     def editOption(self):
         if self.dropdown.count() > 0:
             item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())]
-            item, ok = QInputDialog(self).getItem(self, "Edit Option", "Option:", item_list, 0, False)
+            item, ok = QInputDialog(main_window).getItem(main_window, "Edit Option", "Option:", item_list, 0, False)
             if item and ok:
-                replace, ok = QInputDialog(self).getText(self, "Replacement Option", "Replace '{}' With:".format(item), QLineEdit.Normal, "")
+                replace, ok = QInputDialog(main_window).getText(main_window, "Replacement Option", "Replace '{}' With:".format(item), QLineEdit.Normal, item)
                 if ok and len(replace) > 0:
                     item_list[item_list.index(item)] = replace
                     self.dropdown.clear()
@@ -191,7 +200,6 @@ class SentenceGroup(QWidget):
         else:
             item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())] + ["", "", "", "", "", "", "", "", "", ""]
             write_sheet(report_sheet, [item_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText()[0], col, col + str(item_list.__len__() + 10)), "COLUMNS")
-
 
 def fill_class_data():
     global class_students
@@ -232,6 +240,7 @@ def update_tab_order():
     global report_area
 
     main_window.setTabOrder(class_dropdown, student_dropdown)
+
     if len(sentences) > 0:
         main_window.setTabOrder(student_dropdown, sentences[0].dropdown)
         count = 0
@@ -253,7 +262,7 @@ def update_sentences():
     for tab in sentence_tabs:
         if tab[0][-1] == class_dropdown.currentText()[0]:
             for elem in sentences:
-                elem.deleteLater()
+                elem.delete()
             sentences = []
             
             current_sentences = get_sheet(report_sheet, "{}!A1:Z1000".format("Sentences " + str(class_dropdown.currentText()[0])), "COLUMNS").get('values')
@@ -266,9 +275,40 @@ def update_sentences():
                     )
                     count += 1
                 ro+=1
+            populate_presets(current_sentences)
             break
     update_tab_order()
 
+class Preset:
+    def __init__(self, text, group, index):
+        self.text = text
+        self.group = group
+        self.index = index
+
+def populate_presets(sentence_set):
+    global preset_dropdown
+    global preset_list
+
+    preset_dropdown.clear()
+    presets_found = []
+    preset_list = {}
+
+    for elem in sentence_set:
+        for cell in elem:
+            cell_split = cell.split("*")
+            if len(cell_split) == 2:
+                preset_split = cell_split[1].split("|")
+                if len(preset_split) == 2:
+                    presets_found.append(Preset(cell_split[0], preset_split[0], preset_split[1]))
+
+    for elem in presets_found:
+        if not elem.group in preset_list:
+            preset_list[elem.group] = []
+        preset_list[elem.group].append(elem)
+
+    for elem in preset_list:
+        preset_list[elem] = sorted(preset_list[elem], key=lambda e: int(e.index))
+        preset_dropdown.addItem(elem)
 
 def update_report():
     global class_students
@@ -276,6 +316,8 @@ def update_report():
     global report_area
 
     report_area.setText(class_students[student_dropdown.currentIndex()].report)
+
+
 
 def send_report():
     global class_students
@@ -294,13 +336,20 @@ def generate_report():
     report_area.setText("")
     for sentence in sentences:
         if sentence.checkbox.isChecked():
-            report_area.setText(report_area.toPlainText() +
-                replace_generics(
-                    sentence.dropdown.currentText(),
-                    class_students[student_dropdown.currentIndex()].first_name,
-                    class_students[student_dropdown.currentIndex()].gender
-                ) + " ")
-            
+            report_area.setText(report_area.toPlainText() + replace_generics(sentence.dropdown.currentText())+" ")
+
+def generate_report_from_preset():
+    global report_area
+    global student_dropdown
+    global class_students
+    global preset_list
+    global preset_dropdown
+
+    report_area.setText("")
+    for elem in preset_list[preset_dropdown.currentText()]:
+        report_area.setText(report_area.toPlainText() + replace_generics(elem.text) + " ")
+
+
 fill_class_data()
 
 class_dropdown.currentIndexChanged.connect(fill_class_data)
@@ -308,29 +357,35 @@ student_dropdown.currentIndexChanged.connect(update_report)
 submit_button.clicked.connect(send_report)
 generate_button.clicked.connect(generate_report)
 refresh_button.clicked.connect(update_sentences)
+preset_button.clicked.connect(generate_report_from_preset)
 
-def replace_generics(preset, name, p):
-    if len(p) == 0: p = "T"
-    preset = preset.strip()\
-                .replace("@", name)\
-                .replace("#", pronouns[p][0])\
-                .replace("$", pronouns[p][1])\
-                .replace("%", pronouns[p][2])\
-                .replace("^", pronouns[p][3]) + " "
+def replace_generics(fmt):
+    global student_dropdown
+    global class_students
+    global pronouns
 
-    preset = preset.replace("they is", "they are")
+    current_student = class_students[student_dropdown.currentIndex()]
+    ps = current_student.get_pronouns()
+
+    fmt = fmt.split("*")[0].strip().format(
+        name=current_student.first_name,
+        p1=ps[0],
+        p2=ps[1],
+        p3=ps[2],
+        p4=ps[3]
+    ).replace("@", current_student.first_name).replace("#", ps[0]).replace("$", ps[1]).replace("%", ps[2]).replace("^", ps[3])
+    if current_student.gender == "T":
+        fmt = fmt.replace("they is", "they are")
 
     capitalizationIndices = []
-    for i in range(0, len(preset)):
-        if preset[i] == "." or preset[i] == "!" or preset[i] == "?": capitalizationIndices.append(i)
-
-
+    for i in range(0, len(fmt)):
+        if fmt[i] == "." or fmt[i] == "!" or fmt[i] == "?": capitalizationIndices.append(i)
 
     for index in capitalizationIndices:
-        if index+2 < len(preset):
-            preset = preset[0:index+2] + preset[index+2].upper() + preset[index+3:]
+        if index + 2 < len(fmt):
+            fmt = fmt[0:index + 2] + fmt[index + 2].upper() + fmt[index + 3:]
 
-    return preset.strip()
+    return fmt.strip()
 
 if __name__ == "__main__":
     app.exec()

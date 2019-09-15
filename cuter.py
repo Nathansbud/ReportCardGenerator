@@ -48,7 +48,10 @@ class Button(QPushButton):
         self.setText(text)
         self.move(x, y)
         self.show()
-        if focusOnTab: self.setFocusPolicy(Qt.StrongFocus)
+        if focusOnTab:
+            self.setFocusPolicy(Qt.StrongFocus)
+        else:
+            self.setFocusPolicy(Qt.ClickFocus)
 
     def keyPressEvent(self, event) -> None:
         if event.type() == QEvent.KeyPress:
@@ -95,7 +98,10 @@ class Dropdown(QComboBox):
         self.addItems(options)
         self.lastSelected = " "
         self.history = [" "]
+        # self.setEditable(True)
+        # self.setInsertPolicy(QComboBox.InsertAtCurrent)
         self.show()
+
 
     def keyPressEvent(self, event) -> None:
         if event.type() == QEvent.KeyPress:
@@ -117,6 +123,7 @@ class Checkbox(QCheckBox):
     def __init__(self, window, x, y):
         super(Checkbox, self).__init__(window)
         self.setChecked(True)
+        self.setCheckable(True)
         self.move(x, y)
         self.show()
 
