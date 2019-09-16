@@ -227,9 +227,9 @@ def fill_class_data():
         class_students.append(
             Student(
                 student[0], #First Name
-                student[1], #Last Name
-                student[2], #Gender
-                student[3], #Report
+                student[1] if len(student) >= 2 else "", #Last Name
+                student[2] if len(student) >= 3 else "", #Gender
+                student[3] if len(student) >= 4 else "", #Report
                 class_dropdown.currentText(),
                 ro
             )

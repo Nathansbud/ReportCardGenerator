@@ -15,14 +15,25 @@ class Application(QApplication):
         super(Application, self).__init__([])
         self.setApplicationName(name)
         self.useStyle = useStyle
-        self.setStyles()
+        self.setupStyles()
+        if useStyle:
+            self.changeStyle()
 
-    def setStyles(self):
+    def setupStyles(self):
+        pass
+        # self.setStyleSheet(f'''
+        #     QComboBox {{
+        #         max-width: 200px;
+        #     }}
+        # ''')
+
+    def changeStyle(self):
         if self.useStyle:
             self.setStyleSheet(f'''
                 QPushButton, QComboBox, QLabel {{color: {prefs['txt_color']};}}
                 QWidget#appWindow {{background: {prefs['bg_color']};}}
             ''')
+
 
 class Window(QWidget):
     def __init__(self, name, x, y, w, h, shown=False):
@@ -100,6 +111,7 @@ class Dropdown(QComboBox):
         self.addItems(options)
         self.lastSelected = " "
         self.history = [" "]
+        self.setMaximumWidth(650)
         self.show()
 
     def keyPressEvent(self, event) -> None:
@@ -140,10 +152,10 @@ class ColorSelector(QColorDialog):
             if self.corresponds == "BG":
                 prefs["bg_color"] = color.name()
                 if QApplication.instance().useStyle:
-                    QApplication.instance().setStyles()
+                    QApplication.instance().changeStyle()
             elif self.corresponds == "TXT":
                 prefs["txt_color"] = color.name()
-                QApplication.instance().setStyles()
+                QApplication.instance().changeStyle()
             with open(pref_file, 'w+') as jf:
                 json.dump(prefs, jf, indent=4)
 
