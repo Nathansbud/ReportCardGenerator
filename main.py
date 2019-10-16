@@ -1,32 +1,66 @@
 from threading import Thread
 from math import floor
+import os.path
+import json
+
+import googleapiclient.errors
 
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QWidget
 from cuter import Application, Window, Button, Label, Input, Dropdown, Textarea, ColorSelector, Checkbox #Pared down versions of ^, to reduce cluttered code
 from google_sheets import get_sheet, write_sheet
+from preferences import prefs
 
 '''
 Todo:
-    - Rework program load model so that all data is loaded 
-    - Async/io on spreadsheet calls
     - Hook-ins for presets (i.e. hooks into student grades)
+    - Fix program such that empty classes don't...break things
+        - Disable generate on buttons that have nothing
+        - Load no sentences instead of trying to force populate on blank sentence preset pages
+        - "No sentences exist!" text if none exist 
+    - Add sentence in-program
+    - Drop settings, change report sheet button 
 '''
 
+app = Application("Report Card Generator", useStyle=True)
+main_window = Window("Report Card Generator", 0, 0, 1000, 750, True)
+main_window.setObjectName("appWindow")
+
 report_sheet = "1ermre2z1PwXIXXEymu2aKHRJqtkCKyn2jxR_HpuIxGQ"
+
+def setup_sheet(report=None):
+    passed = False
+    ask_for = "Input report sheet ID:"
+    while not passed:
+        if report is None:
+            report, ok = QInputDialog(main_window).getText(main_window, "Report Sheet", ask_for, QLineEdit.Normal, "")
+
+        check_is = ["d", "https:", "spreadsheets", "http:", "docs.google.com", '']
+        check_starts = ["edit#"]
+
+        report = [part for part in report.split('/') if not part in check_is and not part.startswith(*check_starts)]
+        if len(report) != 1:
+            print("Something went wrong with your link!")
+            print(report)
+            report = None
+        else:
+            try:
+                sheet_data = get_sheet(report[0])
+                prefs.update_pref("report_sheet", report[0])
+                return sheet_data
+            except googleapiclient.errors.HttpError:
+                ask_for = "Something went wrong getting your reports! Input report sheet ID:"
+                report = None
+
 report_column = "D"
 row_offset = 2
 
-sheet = get_sheet(report_sheet)
+sheet = setup_sheet(prefs.get_pref("report_sheet"))
 all_tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
 
 class_tabs = [tab for tab in all_tabs if not tab[0].startswith("Sentences")]
 sentence_tabs = [tab for tab in all_tabs if tab[0].startswith("Sentences")]
 
 class_students = []
-
-app = Application("Report Card Generator", useStyle=True)
-main_window = Window("Report Card Generator", 0, 0, 1000, 750, True)
-main_window.setObjectName("appWindow")
 
 class_label = Label(main_window, "Class: ", main_window.width() / 2.5, 15)
 class_dropdown = Dropdown(
@@ -69,6 +103,10 @@ bgcolor_button.clicked.connect(color_selector[0].openColorDialog)
 
 txtcolor_button = Button(main_window, "Text Color", main_window.width() - 150, bgcolor_button.y() - bgcolor_button.height(), False)
 txtcolor_button.clicked.connect(color_selector[1].openColorDialog)
+
+report_sheet_button = Button(main_window, "Change Sheet", main_window.width() - 150, txtcolor_button.y() - txtcolor_button.height(), False) #Todo
+# report_sheet_button.clicked.connect()
+
 
 refresh_button = Button(main_window, "Refresh", generate_button.x() + generate_button.width(), generate_button.y(), False)
 
@@ -223,6 +261,7 @@ def fill_class_data():
 
     current_class = get_sheet(report_sheet, "{}!A2:D1000".format(class_dropdown.currentText())).get('values')
     ro = row_offset #Row offset
+
     for student in current_class:
         class_students.append(
             Student(
@@ -267,7 +306,7 @@ def update_sentences():
     global sentences
     global sentence_tabs
     global class_dropdown
-    
+
     for tab in sentence_tabs:
         if tab[0][-1] == class_dropdown.currentText()[0]:
             for elem in sentences:
@@ -324,7 +363,8 @@ def update_report():
     global student_dropdown
     global report_area
 
-    report_area.setText(class_students[student_dropdown.currentIndex()].report)
+    if student_dropdown is not None:
+        report_area.setText(class_students[student_dropdown.currentIndex()].report)
 
 
 

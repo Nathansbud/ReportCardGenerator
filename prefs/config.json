@@ -1,4 +1,5 @@
 {
-    "bg_color": "#000080",
-    "txt_color": "#ffffff"
+    "bg_color": "#000080", 
+    "txt_color": "#ffffff", 
+    "report_sheet": ""
 }

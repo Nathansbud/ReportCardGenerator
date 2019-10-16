@@ -6,9 +6,7 @@ from sys import exit
 import os
 import json
 
-pref_file = os.path.join(os.path.dirname(__file__), "prefs" + os.sep + "config.json")
-with open(pref_file) as jf:
-    prefs = json.load(jf)
+from preferences import prefs
 
 class Application(QApplication):
     def __init__(self, name, useStyle):
@@ -30,8 +28,8 @@ class Application(QApplication):
     def changeStyle(self):
         if self.useStyle:
             self.setStyleSheet(f'''
-                QPushButton, QComboBox, QLabel {{color: {prefs['txt_color']};}}
-                QWidget#appWindow {{background: {prefs['bg_color']};}}
+                QPushButton, QComboBox, QLabel {{color: {prefs.get_pref('txt_color') if not None else '#ffffff'};}}
+                QWidget#appWindow {{background: {prefs.get_pref('bg_color') if not None else '#000080'};}}
             ''')
 
 
@@ -41,7 +39,7 @@ class Window(QWidget):
         self.setWindowTitle(name)
         self.setGeometry(x, y, w, h)
         self.setFixedSize(self.size())
-        self.setUI(bg_color=prefs['bg_color'], txt_color=prefs['txt_color'])
+        self.setUI(bg_color=prefs.get_pref('bg_color') if not None else "#000080", txt_color=prefs.get_pref('txt_color') if not None else "#ffffff")
         # self.setUnifiedTitleAndToolBarOnMac(True)
         if shown:
             self.show()
@@ -144,18 +142,13 @@ class ColorSelector(QColorDialog):
         self.corresponds = corresponds
 
     def openColorDialog(self):
-        global prefs
-        global pref_file
-
         color = QColorDialog.getColor(title=self.corresponds + " Color")
         if color.isValid():
             if self.corresponds == "BG":
-                prefs["bg_color"] = color.name()
+                prefs.update_pref('bg_color', color.name())
                 if QApplication.instance().useStyle:
                     QApplication.instance().changeStyle()
             elif self.corresponds == "TXT":
-                prefs["txt_color"] = color.name()
+                prefs.update_pref('txt_color', color.name())
                 QApplication.instance().changeStyle()
-            with open(pref_file, 'w+') as jf:
-                json.dump(prefs, jf, indent=4)
 
