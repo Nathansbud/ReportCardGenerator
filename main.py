@@ -2,6 +2,7 @@ from threading import Thread
 from math import floor
 import os.path
 import json
+import sys
 
 import googleapiclient.errors
 
@@ -24,10 +25,11 @@ Todo:
 app = Application("Report Card Generator", useStyle=True)
 main_window = Window("Report Card Generator", 0, 0, 1000, 750, True)
 main_window.setObjectName("appWindow")
-
-report_sheet = "1ermre2z1PwXIXXEymu2aKHRJqtkCKyn2jxR_HpuIxGQ"
+report_sheet = prefs.get_pref("report_sheet")
 
 def setup_sheet(report=None):
+    global report_sheet
+
     passed = False
     ask_for = "Input report sheet ID:"
     while not passed:
@@ -45,16 +47,18 @@ def setup_sheet(report=None):
         else:
             try:
                 sheet_data = get_sheet(report[0])
+                report_sheet = report[0]
                 prefs.update_pref("report_sheet", report[0])
                 return sheet_data
             except googleapiclient.errors.HttpError:
                 ask_for = "Something went wrong getting your reports! Input report sheet ID:"
                 report = None
+        report = None
 
 report_column = "D"
 row_offset = 2
 
-sheet = setup_sheet(prefs.get_pref("report_sheet"))
+sheet = setup_sheet(report_sheet if len(report_sheet) > 0 else None)
 all_tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
 
 class_tabs = [tab for tab in all_tabs if not tab[0].startswith("Sentences")]
@@ -93,18 +97,19 @@ generate_button = Button(main_window, "Generate", main_window.width()/2 - 20, 41
 report_area = Textarea(main_window, "", 0, 450, main_window.width(), 250)
 submit_button = Button(main_window, "Submit", main_window.width()/2 - 20, 710)
 
-color_selector = [
-    ColorSelector(main_window, "BG"),
-    ColorSelector(main_window, "TXT")
-]
+
+color_selector = ColorSelector(main_window)
 
 bgcolor_button = Button(main_window, "BG Color", main_window.width() - 150, student_label.y(), False)
-bgcolor_button.clicked.connect(color_selector[0].openColorDialog)
-
 txtcolor_button = Button(main_window, "Text Color", main_window.width() - 150, bgcolor_button.y() - bgcolor_button.height(), False)
-txtcolor_button.clicked.connect(color_selector[1].openColorDialog)
+lblcolor_button = Button(main_window, "Label Color", main_window.width() - 150, txtcolor_button.y() - txtcolor_button.height(), False)
 
-report_sheet_button = Button(main_window, "Change Sheet", main_window.width() - 150, txtcolor_button.y() - txtcolor_button.height(), False) #Todo
+bgcolor_button.clicked.connect(lambda: color_selector.updateColor("Background Color", "bg_color"))
+txtcolor_button.clicked.connect(lambda: color_selector.updateColor("Text Color", "txt_color"))
+lblcolor_button.clicked.connect(lambda: color_selector.updateColor("Label Color", "lbl_color"))
+
+
+# report_sheet_button = Button(main_window, "Change Sheet", main_window.width() - 150, txtcolor_button.y() - txtcolor_button.height(), False) #Todo
 # report_sheet_button.clicked.connect()
 
 
@@ -249,12 +254,14 @@ class SentenceGroup:
             write_sheet(report_sheet, [item_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText()[0], col, col + str(item_list.__len__() + 10)), "COLUMNS")
 
 def fill_class_data():
+    global report_sheet
     global class_students
     global class_dropdown
     global class_tabs
     global student_dropdown
     global report_area
     global row_offset
+
 
     student_dropdown.clear()
     class_students = []
@@ -386,6 +393,7 @@ def generate_report():
     for sentence in sentences:
         if sentence.checkbox.isChecked():
             report_area.setText(report_area.toPlainText() + replace_generics(sentence.dropdown.currentText())+" ")
+    report_area.repaint()
 
 def generate_report_from_preset():
     global report_area

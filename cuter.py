@@ -28,7 +28,8 @@ class Application(QApplication):
     def changeStyle(self):
         if self.useStyle:
             self.setStyleSheet(f'''
-                QPushButton, QComboBox, QLabel {{color: {prefs.get_pref('txt_color') if not None else '#ffffff'};}}
+                QPushButton, QComboBox {{color: {prefs.get_pref('txt_color') if not None else '#000000'};}}
+                QLabel {{color: {prefs.get_pref('lbl_color') if not None else '#ffffff'};}}
                 QWidget#appWindow {{background: {prefs.get_pref('bg_color') if not None else '#000080'};}}
             ''')
 
@@ -137,18 +138,13 @@ class Checkbox(QCheckBox):
         self.show()
 
 class ColorSelector(QColorDialog):
-    def __init__(self, window, corresponds):
+    def __init__(self, window, corresponds=None):
         super(ColorSelector, self).__init__(window)
         self.corresponds = corresponds
 
-    def openColorDialog(self):
-        color = QColorDialog.getColor(title=self.corresponds + " Color")
-        if color.isValid():
-            if self.corresponds == "BG":
-                prefs.update_pref('bg_color', color.name())
-                if QApplication.instance().useStyle:
-                    QApplication.instance().changeStyle()
-            elif self.corresponds == "TXT":
-                prefs.update_pref('txt_color', color.name())
-                QApplication.instance().changeStyle()
-
+    def updateColor(self, title, color_pref):
+        #pretty sure title ain't working, idk why
+        color = QColorDialog.getColor(title=title)
+        if color.isValid() and prefs.has_pref(color_pref):
+            prefs.update_pref(color_pref, color.name())
+            QApplication.instance().changeStyle()

@@ -1,0 +1,15 @@
+{
+  "report_sheet": "",
+  "dark_theme": {
+    "is_dark": true,
+    "bg_color": "#111111",
+    "txt_color": "#ffffff",
+    "lbl_color": "#ffffff"
+  },
+  "light_theme": {
+    "is_dark": false,
+    "bg_color": "#d3d3d3",
+    "txt_color": "#ffffff",
+    "lbl_color": "#000000"
+  }
+}
