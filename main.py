@@ -7,7 +7,8 @@ import sys
 import googleapiclient.errors
 
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QWidget
-from cuter import Application, Window, Button, Label, Input, Dropdown, Textarea, ColorSelector, Checkbox #Pared down versions of ^, to reduce cluttered code
+from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorSelector, Checkbox#, #Screen
+from cuter import app, screens, switch_screen  # Pared down versions of ^, to reduce cluttered code
 from google_sheets import get_sheet, write_sheet
 from preferences import prefs
 
@@ -22,9 +23,6 @@ Todo:
     - Drop settings, change report sheet button 
 '''
 
-app = Application("Report Card Generator", useStyle=True)
-main_window = Window("Report Card Generator", 0, 0, 1000, 750, True)
-main_window.setObjectName("appWindow")
 report_sheet = prefs.get_pref("report_sheet")
 
 def setup_sheet(report=None):
@@ -34,7 +32,7 @@ def setup_sheet(report=None):
     ask_for = "Input report sheet ID:"
     while not passed:
         if report is None:
-            report, ok = QInputDialog(main_window).getText(main_window, "Report Sheet", ask_for, QLineEdit.Normal, "")
+            report, ok = QInputDialog(screens["Reports"]).getText(screens["Reports"], "Report Sheet", ask_for, QLineEdit.Normal, "")
 
         check_is = ["d", "https:", "spreadsheets", "http:", "docs.google.com", '']
         check_starts = ["edit#"]
@@ -66,54 +64,40 @@ sentence_tabs = [tab for tab in all_tabs if tab[0].startswith("Sentences")]
 
 class_students = []
 
-class_label = Label(main_window, "Class: ", main_window.width() / 2.5, 15)
-class_dropdown = Dropdown(
-    main_window,
-    class_label.x() + class_label.width(),
-    class_label.y() ,
-    [tab[0] for tab in class_tabs]
-)
+class_label = Label("Reports", "Class: ", screens['Reports'].width() / 2.5, 15)
+class_dropdown = Dropdown("Reports", class_label.x() + class_label.width(), class_label.y(), [tab[0] for tab in class_tabs])
 
-student_label = Label(main_window, "Name: ", 50, 75)
-student_dropdown = Dropdown(
-    main_window,
-    student_label.x() + student_label.width(),
-    student_label.y(),
-    []
-)
+student_label = Label("Reports", "Name: ", 50, 75)
+student_dropdown = Dropdown("Reports", student_label.x() + student_label.width(), student_label.y(), [])
 
-preset_button = Button(main_window, "Generate Preset", student_dropdown.x() + student_dropdown.width(), student_dropdown.y())
-preset_dropdown = Dropdown(
-    main_window,
-    preset_button.x() + preset_button.width(),
-    preset_button.y(),
-    []
-)
+preset_button = Button("Reports", "Generate Preset", student_dropdown.x() + student_dropdown.width(), student_dropdown.y())
+preset_dropdown = Dropdown("Reports", preset_button.x() + preset_button.width(), preset_button.y(), [])
 preset_list = {}
 
 sentences = [] #Should be populated with SentenceGroup elements
 
-generate_button = Button(main_window, "Generate", main_window.width()/2 - 20, 410)
-report_area = Textarea(main_window, "", 0, 450, main_window.width(), 250)
-submit_button = Button(main_window, "Submit", main_window.width()/2 - 20, 710)
+generate_button = Button("Reports", "Generate", screens['Reports'].width()/2 - 20, 410)
+report_area = Textarea("Reports", "", 0, 450, screens['Reports'].width(), 250)
+submit_button = Button("Reports", "Submit", screens['Reports'].width()/2 - 20, 700)
 
+color_selector = ColorSelector("Reports")
 
-color_selector = ColorSelector(main_window)
+open_preferences_button = Button("Reports", "Open Preferences", screens['Reports'].width(), 0)
+open_preferences_button.move(screens['Reports'].width() - open_preferences_button.width(), 0)
+open_reports_button = Button("Preferences", "Open Reports", screens['Preferences'].width() - 50, 0)
+open_reports_button.move(screens['Preferences'].width() - open_reports_button.width(), 0)
+open_preferences_button.clicked.connect(lambda: switch_screen("Preferences"))
+open_reports_button.clicked.connect(lambda: switch_screen("Reports"))
 
-bgcolor_button = Button(main_window, "BG Color", main_window.width() - 150, student_label.y(), False)
-txtcolor_button = Button(main_window, "Text Color", main_window.width() - 150, bgcolor_button.y() - bgcolor_button.height(), False)
-lblcolor_button = Button(main_window, "Label Color", main_window.width() - 150, txtcolor_button.y() - txtcolor_button.height(), False)
+bgcolor_button = Button("Preferences", "BG Color", screens['Preferences'].width() - 150, open_reports_button.y() + open_reports_button.height(), False)
+txtcolor_button = Button("Preferences", "Text Color", screens['Preferences'].width() - 150, bgcolor_button.y() + bgcolor_button.height(), False)
+lblcolor_button = Button("Preferences", "Label Color", screens['Preferences'].width() - 150, txtcolor_button.y() + txtcolor_button.height(), False)
 
 bgcolor_button.clicked.connect(lambda: color_selector.updateColor("Background Color", "bg_color"))
 txtcolor_button.clicked.connect(lambda: color_selector.updateColor("Text Color", "txt_color"))
 lblcolor_button.clicked.connect(lambda: color_selector.updateColor("Label Color", "lbl_color"))
 
-
-# report_sheet_button = Button(main_window, "Change Sheet", main_window.width() - 150, txtcolor_button.y() - txtcolor_button.height(), False) #Todo
-# report_sheet_button.clicked.connect()
-
-
-refresh_button = Button(main_window, "Refresh", generate_button.x() + generate_button.width(), generate_button.y(), False)
+refresh_button = Button("Reports", "Refresh", generate_button.x() + generate_button.width(), generate_button.y(), False)
 
 class Student:
     pronouns = {
@@ -152,13 +136,13 @@ class SentenceGroup:
         self.x = x
         self.y = y
 
-        self.checkbox = Checkbox(main_window, x, y)
-        self.label = Label(main_window, label, x + self.checkbox.width(), y)
-        self.dropdown = Dropdown(main_window, self.label.x() + self.label.width(), y, options)
+        self.checkbox = Checkbox("Reports", x, y)
+        self.label = Label("Reports", label, x + self.checkbox.width(), y)
+        self.dropdown = Dropdown("Reports", self.label.x() + self.label.width(), y, options)
 
-        self.add = Button(main_window, "+", self.dropdown.x() + self.dropdown.width(), y, False)
-        self.remove = Button(main_window, "-", self.add.x() + self.add.width(), y, False)
-        self.change = Button(main_window, "Edit", self.remove.x() + self.remove.width(), y, False)
+        self.add = Button("Reports", "+", self.dropdown.x() + self.dropdown.width(), y, False)
+        self.remove = Button("Reports", "-", self.add.x() + self.add.width(), y, False)
+        self.change = Button("Reports", "Edit", self.remove.x() + self.remove.width(), y, False)
 
         self.add.clicked.connect(self.addOption)
         self.remove.clicked.connect(self.removeOption)
@@ -183,7 +167,7 @@ class SentenceGroup:
         self.change.deleteLater()
 
     def addOption(self):
-        text, ok = QInputDialog(main_window).getText(main_window, "Add Option", "Sentence", QLineEdit.Normal, "")
+        text, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Add Option", "Sentence", QLineEdit.Normal, "")
         if ok and len(text) > 0:
             self.dropdown.addItem(text)
 
@@ -193,7 +177,7 @@ class SentenceGroup:
     def removeOption(self):
         if self.dropdown.count() > 0:
             item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())]
-            item, ok = QInputDialog(main_window).getItem(main_window, "Remove Option", "Option:", item_list, 0, False)
+            item, ok = QInputDialog(screens['Reports']).getItem(screens['Reports'], "Remove Option", "Option:", item_list, 0, False)
             if ok and item:
                 item_list.remove(item)
                 self.dropdown.clear()
@@ -219,9 +203,9 @@ class SentenceGroup:
     def editOption(self):
         if self.dropdown.count() > 0:
             item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())]
-            item, ok = QInputDialog(main_window).getItem(main_window, "Edit Option", "Option:", item_list, 0, False)
+            item, ok = QInputDialog(screens['Reports']).getItem(screens['Reports'], "Edit Option", "Option:", item_list, 0, False)
             if item and ok:
-                replace, ok = QInputDialog(main_window).getText(main_window, "Replacement Option", "Replace '{}' With:".format(item), QLineEdit.Normal, item)
+                replace, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Replacement Option", "Replace '{}' With:".format(item), QLineEdit.Normal, item)
                 if ok and len(replace) > 0:
                     item_list[item_list.index(item)] = replace
                     self.dropdown.clear()
@@ -294,20 +278,20 @@ def update_tab_order():
     global student_dropdown
     global report_area
 
-    main_window.setTabOrder(class_dropdown, student_dropdown)
+    screens['Reports'].setTabOrder(class_dropdown, student_dropdown)
 
     if len(sentences) > 0:
-        main_window.setTabOrder(student_dropdown, sentences[0].dropdown)
+        screens['Reports'].setTabOrder(student_dropdown, sentences[0].dropdown)
         count = 0
         if len(sentences) > 1:
             for sentence in sentences[:-1]:
-                main_window.setTabOrder(sentences[count].dropdown, sentences[count+1].dropdown)
+                screens['Reports'].setTabOrder(sentences[count].dropdown, sentences[count+1].dropdown)
                 count+=1
-        main_window.setTabOrder(sentences[count].dropdown, generate_button)
+        screens['Reports'].setTabOrder(sentences[count].dropdown, generate_button)
     else:
-        main_window.setTabOrder(student_dropdown, generate_button)
-    main_window.setTabOrder(generate_button, report_area)
-    main_window.setTabOrder(report_area, submit_button)
+        screens['Reports'].setTabOrder(student_dropdown, generate_button)
+    screens['Reports'].setTabOrder(generate_button, report_area)
+    screens['Reports'].setTabOrder(report_area, submit_button)
 
 def update_sentences():
     global sentences
@@ -447,3 +431,4 @@ def replace_generics(fmt):
 
 if __name__ == "__main__":
     app.exec()
+

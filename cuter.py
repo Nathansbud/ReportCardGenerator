@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog, QCheckBox, QInputDialog
+from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog, QCheckBox, QInputDialog, QStackedWidget
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont
 
@@ -13,26 +13,18 @@ class Application(QApplication):
         super(Application, self).__init__([])
         self.setApplicationName(name)
         self.useStyle = useStyle
-        self.setupStyles()
         if useStyle:
             self.changeStyle()
-
-    def setupStyles(self):
-        pass
-        # self.setStyleSheet(f'''
-        #     QComboBox {{
-        #         max-width: 200px;
-        #     }}
-        # ''')
 
     def changeStyle(self):
         if self.useStyle:
             self.setStyleSheet(f'''
                 QPushButton, QComboBox {{color: {prefs.get_pref('txt_color') if not None else '#000000'};}}
                 QLabel {{color: {prefs.get_pref('lbl_color') if not None else '#ffffff'};}}
-                QWidget#appWindow {{background: {prefs.get_pref('bg_color') if not None else '#000080'};}}
+                QWidget#Reports {{background: {prefs.get_pref('bg_color') if not None else '#000080'};}}
             ''')
 
+app = Application("Report Card Generator", useStyle=True)
 
 class Window(QWidget):
     def __init__(self, name, x, y, w, h, shown=False):
@@ -40,11 +32,11 @@ class Window(QWidget):
         self.setWindowTitle(name)
         self.setGeometry(x, y, w, h)
         self.setFixedSize(self.size())
+        self.setObjectName(name)
         self.setUI(bg_color=prefs.get_pref('bg_color') if not None else "#000080", txt_color=prefs.get_pref('txt_color') if not None else "#ffffff")
-        # self.setUnifiedTitleAndToolBarOnMac(True)
+        self.shown = shown
         if shown:
             self.show()
-
 
     def setUI(self, bg_color=None, txt_color=None):
         palette = self.palette()
@@ -61,14 +53,41 @@ class Window(QWidget):
             palette.setColor(QPalette.ButtonText, text_color)
         self.setPalette(palette)
 
-
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
             exit()
 
+screens = {
+    "Reports":Window("Reports", 0, 0, 1000, 750, True),
+    "Preferences":Window("Preferences", 0, 0, 1000, 750, False)
+}
+
+def switch_screen(to):
+    if not to in screens:
+        return
+    else:
+        if not screens[to].shown:
+            for screen in screens:
+                if not screen == to:
+                    screens[screen].shown = False
+                    screens[screen].hide()
+                else:
+                    screens[screen].shown = True
+                    screens[screen].show()
+
+
+
+# screen_handler = QStackedWidget()
+# for scr in screens.values(): screen_handler.addWidget(scr)
+# screen_handler.setCurrentIndex(0)
+
 class Button(QPushButton):
-    def __init__(self, window, text, x, y, focusOnTab=True):
-        super(Button, self).__init__(window)
+    def __init__(self, screen, text, x, y, focusOnTab=True):
+        if screen in screens:
+            self.screen = screen
+            super(Button, self).__init__(screens[screen])
+        else:
+            self.screen = None
         self.setText(text)
         self.move(x, y)
         self.show()
@@ -86,8 +105,13 @@ class Button(QPushButton):
             exit()
 
 class Label(QLabel):
-    def __init__(self, window, text, x, y):
-        super(Label, self).__init__(window)
+    def __init__(self, screen, text, x, y):
+        if screen in screens:
+            self.screen = screen
+            super(Label, self).__init__(screens[screen])
+        else:
+            self.screen = None
+
         self.setText(text)
         self.move(x, y)
         self.setupFont()
@@ -97,14 +121,22 @@ class Label(QLabel):
         self.setFont(QFont(font_family, size, QFont.Bold))
 
 class Input(QLineEdit):
-    def __init__(self, window, x, y):
-        super(Input, self).__init__(window)
+    def __init__(self, screen, x, y):
+        if screen in screens:
+            self.screen = screen
+            super(Input, self).__init__(screens[screen])
+        else:
+            self.screen = None
         self.move(x, y)
         self.show()
 
 class Dropdown(QComboBox):
-    def __init__(self, window, x, y, options):
-        super(Dropdown, self).__init__(window)
+    def __init__(self, screen, x, y, options):
+        if screen in screens:
+            self.screen = screen
+            super(Dropdown, self).__init__(screens[screen])
+        else:
+            self.screen = None
         self.move(x, y)
         self.setFocusPolicy(Qt.StrongFocus)
         self.addItems(options)
@@ -122,29 +154,41 @@ class Dropdown(QComboBox):
 
 
 class Textarea(QTextEdit):
-    def __init__(self, window, content, x, y, w, h):
-        super(Textarea, self).__init__(window)
+    def __init__(self, screen, content, x, y, w, h):
+        if screen in screens:
+            self.screen = screen
+            super(Textarea, self).__init__(screens[screen])
+        else:
+            self.screen = None
         self.setGeometry(x, y, w, h)
         self.setText(content)
         self.setTabChangesFocus(True)
         self.show()
 
 class Checkbox(QCheckBox):
-    def __init__(self, window, x, y):
-        super(Checkbox, self).__init__(window)
+    def __init__(self, screen, x, y, ):
+        if screen in screens:
+            self.screen = screen
+            super(Checkbox, self).__init__(screens[screen])
+        else:
+            self.screen = None
         self.setChecked(True)
         self.setCheckable(True)
         self.move(x, y)
         self.show()
 
 class ColorSelector(QColorDialog):
-    def __init__(self, window, corresponds=None):
-        super(ColorSelector, self).__init__(window)
+    def __init__(self, screen, corresponds=None):
+        if screen in screens:
+            self.screen = screen
+            super(ColorSelector, self).__init__(screens[screen])
+        else:
+            self.screen = None
         self.corresponds = corresponds
 
     def updateColor(self, title, color_pref):
-        #pretty sure title ain't working, idk why
         color = QColorDialog.getColor(title=title)
         if color.isValid() and prefs.has_pref(color_pref):
             prefs.update_pref(color_pref, color.name())
             QApplication.instance().changeStyle()
+
