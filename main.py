@@ -3,6 +3,7 @@ from math import floor
 import os.path
 import json
 import sys
+import re
 
 import googleapiclient.errors
 
@@ -20,7 +21,8 @@ Todo:
         - Load no sentences instead of trying to force populate on blank sentence preset pages
         - "No sentences exist!" text if none exist 
     - Add sentence in-program
-    - Drop settings, change report sheet button 
+    - Drop settings, change report sheet button
+    - Support for grade rules         
 '''
 
 report_sheet = prefs.get_pref("report_sheet")
@@ -72,7 +74,10 @@ student_dropdown = Dropdown("Reports", student_label.x() + student_label.width()
 
 preset_button = Button("Reports", "Generate Preset", student_dropdown.x() + student_dropdown.width(), student_dropdown.y())
 preset_dropdown = Dropdown("Reports", preset_button.x() + preset_button.width(), preset_button.y(), [])
+grade_button = Button("Reports", "Generate From Grades", preset_dropdown.x()+preset_dropdown.width(), preset_dropdown.y())
+
 preset_list = {}
+grade_rules = []
 
 sentences = [] #Should be populated with SentenceGroup elements
 
@@ -106,14 +111,14 @@ class Student:
         "T": ["they", "their", "them", "theirs"]
     }
 
-    def __init__(self, first_name, last_name, gender, report, classroom, offset):
+    def __init__(self, first_name, last_name, gender, report, grades, classroom, offset):
         self.first_name = first_name
         self.last_name = last_name
         self.report = report
+        self.grades = grades
         self.gender = gender
         self.classroom = classroom
         self.offset = offset
-
 
     def submit_report(self, report=None):
         global report_sheet
@@ -250,20 +255,25 @@ def fill_class_data():
     student_dropdown.clear()
     class_students = []
 
-    current_class = get_sheet(report_sheet, "{}!A2:D1000".format(class_dropdown.currentText())).get('values')
+    #Get full class sheet, including headers
+    current_class = get_sheet(report_sheet, "{}!A1:Z1000".format(class_dropdown.currentText())).get('values')
     ro = row_offset #Row offset
 
-    for student in current_class:
+    #Drop the headers, iterate over all student rows
+    for student in current_class[1:]:
         class_students.append(
             Student(
                 student[0], #First Name
                 student[1] if len(student) >= 2 else "", #Last Name
                 student[2] if len(student) >= 3 else "", #Gender
                 student[3] if len(student) >= 4 else "", #Report
+                #Zip assignment names to grades
+                dict(zip(current_class[0][4:], student[4:])) if len(student) >= 5 else {},
                 class_dropdown.currentText(),
                 ro
             )
         )
+        print(class_students[-1].grades)
         ro+=1
 
     student_dropdown.addItems([student.first_name + " " + student.last_name for student in class_students])
@@ -319,26 +329,49 @@ def update_sentences():
     update_tab_order()
 
 class Preset:
-    def __init__(self, text, group, index):
+    prefix = {
+        "grade":"~",
+        "linear":"*"
+    }
+    def __init__(self, text, group, index, ruleset=None, priority=None):
         self.text = text
         self.group = group
         self.index = index
+        self.ruleset = ruleset
+        self.priority = priority
+
+    def __repr__(self):
+        return f'Text: {self.text} | Group: {self.group} | Index: {self.index} | Ruleset: {self.ruleset} | Priority: {self.priority}'
 
 def populate_presets(sentence_set):
     global preset_dropdown
     global preset_list
+    global grade_rules
 
     preset_dropdown.clear()
     presets_found = []
     preset_list = {}
 
+    grade_rules = []
+
+    count = 1
     for elem in sentence_set:
         for cell in elem:
-            cell_split = cell.split("*")
-            if len(cell_split) == 2:
-                preset_split = cell_split[1].split("|")
-                if len(preset_split) == 2:
-                    presets_found.append(Preset(cell_split[0], preset_split[0], preset_split[1]))
+            #Split cell based on Preset delimiters
+            cell_parts = re.split(f"[{Preset.prefix['grade']}{Preset.prefix['linear']}]", cell)
+            if len(cell_parts) > 1:
+                preset_text = cell_parts[0] #Sentence comes first
+                for ps in cell_parts[1:]:
+                    preset_parts = re.split("[|]", ps) #Split cell based into its components
+                    if len(preset_parts) == 3: #3-part ones have a ruleset string
+                        grade_rules.append(
+                            Preset(preset_text, preset_parts[0], count, ruleset=preset_parts[1], priority=preset_parts[2])
+                        )
+                    elif len(preset_parts) == 2:
+                        presets_found.append(
+                            Preset(preset_text, preset_parts[0], preset_parts[1])
+                        )
+        count+=1
 
     for elem in presets_found:
         if not elem.group in preset_list:
@@ -348,6 +381,8 @@ def populate_presets(sentence_set):
     for elem in preset_list:
         preset_list[elem] = sorted(preset_list[elem], key=lambda e: int(e.index))
         preset_dropdown.addItem(elem)
+
+
 
 def update_report():
     global class_students
@@ -390,7 +425,29 @@ def generate_report_from_preset():
     if preset_dropdown.count() > 0:
         for elem in preset_list[preset_dropdown.currentText()]:
             report_area.setText(report_area.toPlainText() + replace_generics(elem.text) + " ")
+    report_area.repaint()
 
+def generate_report_from_grades():
+    global class_students
+    global grade_rules
+    global class_dropdown
+
+    current_student = class_students[class_dropdown.currentIndex()]
+    report_area.setText("")
+    chosen_options = {}
+
+    for elem in grade_rules:
+        matches = lambda G: eval(elem.ruleset)
+        if elem.group in current_student.grades and matches(int(current_student.grades[elem.group])):
+            if elem.index in chosen_options:
+                if chosen_options[elem.index].priority < elem.priority:
+                    chosen_options[elem.index] = elem
+            else:
+                chosen_options[elem.index] = elem
+
+    for option in chosen_options:
+        report_area.setText(report_area.toPlainText() + replace_generics(chosen_options[option].text) + " ")
+    report_area.repaint()
 
 fill_class_data()
 
@@ -400,6 +457,7 @@ submit_button.clicked.connect(send_report)
 generate_button.clicked.connect(generate_report)
 refresh_button.clicked.connect(update_sentences)
 preset_button.clicked.connect(generate_report_from_preset)
+grade_button.clicked.connect(generate_report_from_grades)
 
 def replace_generics(fmt):
     global student_dropdown
@@ -409,7 +467,9 @@ def replace_generics(fmt):
     current_student = class_students[student_dropdown.currentIndex()]
     ps = current_student.get_pronouns()
 
-    fmt = fmt.split("*")[0].strip().format(
+    #* = Preset
+    #~ = Grade Preset
+    fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip().format(
         name=current_student.first_name,
         p1=ps[0],
         p2=ps[1],

@@ -21,7 +21,7 @@ class Application(QApplication):
             self.setStyleSheet(f'''
                 QPushButton, QComboBox {{color: {prefs.get_pref('txt_color') if not None else '#000000'};}}
                 QLabel {{color: {prefs.get_pref('lbl_color') if not None else '#ffffff'};}}
-                QWidget#Reports {{background: {prefs.get_pref('bg_color') if not None else '#000080'};}}
+                QWidget#Reports, QWidget#Preferences {{background: {prefs.get_pref('bg_color') if not None else '#000080'};}}
             ''')
 
 app = Application("Report Card Generator", useStyle=True)
