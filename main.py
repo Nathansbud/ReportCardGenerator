@@ -1,8 +1,6 @@
 from threading import Thread
 from math import floor
-import os.path
-import json
-import sys
+from grades import GradeSet, GradeScheme, GradeType, Scale
 import re
 
 import googleapiclient.errors
@@ -22,7 +20,8 @@ Todo:
         - "No sentences exist!" text if none exist 
     - Add sentence in-program
     - Drop settings, change report sheet button
-    - Support for grade rules         
+    - Support for grade rules
+    - Full reload button         
 '''
 
 report_sheet = prefs.get_pref("report_sheet")
@@ -58,13 +57,42 @@ def setup_sheet(report=None):
 report_column = "D"
 row_offset = 2
 
-sheet = setup_sheet(report_sheet if len(report_sheet) > 0 else None)
-all_tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
-
-class_tabs = [tab for tab in all_tabs if not tab[0].startswith("Sentences")]
-sentence_tabs = [tab for tab in all_tabs if tab[0].startswith("Sentences")]
-
+sheet = []
+all_tabs = []
+class_tabs = []
+sentence_tabs = []
 class_students = []
+preset_list = {}
+grade_rules = []
+sentences = []  # Should be populated with SentenceGroup elements
+
+first_run = True
+
+def setup():
+    global sheet
+    global all_tabs
+    global class_tabs
+    global sentence_tabs
+    global class_students
+    global preset_list
+    global grade_rules
+    global sentences
+    global first_run
+
+    sheet = setup_sheet(report_sheet if len(report_sheet) > 0 else None)
+    all_tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
+    class_tabs = [tab for tab in all_tabs if str.isnumeric(tab[0][0])]
+    sentence_tabs = [tab for tab in all_tabs if tab[0].startswith("Sentences")]
+    class_students = []
+    preset_list = {}
+    grade_rules = []
+    sentences = []
+    # if not first_run:
+    #     fill_class_data()
+    # first_run = False
+
+
+setup()
 
 class_label = Label("Reports", "Class: ", screens['Reports'].width() / 2.5, 15)
 class_dropdown = Dropdown("Reports", class_label.x() + class_label.width(), class_label.y(), [tab[0] for tab in class_tabs])
@@ -76,10 +104,6 @@ preset_button = Button("Reports", "Generate Preset", student_dropdown.x() + stud
 preset_dropdown = Dropdown("Reports", preset_button.x() + preset_button.width(), preset_button.y(), [])
 grade_button = Button("Reports", "Generate From Grades", preset_dropdown.x()+preset_dropdown.width(), preset_dropdown.y())
 
-preset_list = {}
-grade_rules = []
-
-sentences = [] #Should be populated with SentenceGroup elements
 
 generate_button = Button("Reports", "Generate", screens['Reports'].width()/2 - 20, 410)
 report_area = Textarea("Reports", "", 0, 450, screens['Reports'].width(), 250)
@@ -93,6 +117,8 @@ open_reports_button = Button("Preferences", "Open Reports", screens['Preferences
 open_reports_button.move(screens['Preferences'].width() - open_reports_button.width(), 0)
 open_preferences_button.clicked.connect(lambda: switch_screen("Preferences"))
 open_reports_button.clicked.connect(lambda: switch_screen("Reports"))
+
+reload_button = Button("Reports", "Reload", open_preferences_button.x(), open_preferences_button.y() + open_preferences_button.height())
 
 bgcolor_button = Button("Preferences", "BG Color", screens['Preferences'].width() - 150, open_reports_button.y() + open_reports_button.height(), False)
 txtcolor_button = Button("Preferences", "Text Color", screens['Preferences'].width() - 150, bgcolor_button.y() + bgcolor_button.height(), False)
@@ -273,7 +299,6 @@ def fill_class_data():
                 ro
             )
         )
-        print(class_students[-1].grades)
         ro+=1
 
     student_dropdown.addItems([student.first_name + " " + student.last_name for student in class_students])
@@ -437,7 +462,7 @@ def generate_report_from_grades():
     chosen_options = {}
 
     for elem in grade_rules:
-        matches = lambda G: eval(elem.ruleset)
+        matches = lambda G: eval(elem.ruleset, {"__builtins__": None}) #this is a mistake waiting to happen
         if elem.group in current_student.grades and matches(int(current_student.grades[elem.group])):
             if elem.index in chosen_options:
                 if chosen_options[elem.index].priority < elem.priority:
@@ -449,8 +474,8 @@ def generate_report_from_grades():
         report_area.setText(report_area.toPlainText() + replace_generics(chosen_options[option].text) + " ")
     report_area.repaint()
 
-fill_class_data()
 
+fill_class_data()
 class_dropdown.currentIndexChanged.connect(fill_class_data)
 student_dropdown.currentIndexChanged.connect(update_report)
 submit_button.clicked.connect(send_report)
@@ -458,6 +483,7 @@ generate_button.clicked.connect(generate_report)
 refresh_button.clicked.connect(update_sentences)
 preset_button.clicked.connect(generate_report_from_preset)
 grade_button.clicked.connect(generate_report_from_grades)
+reload_button.clicked.connect(setup)
 
 def replace_generics(fmt):
     global student_dropdown
