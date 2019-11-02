@@ -1,7 +1,6 @@
 from threading import Thread
 from math import floor
 
-from grades import GradeSet, GradeScheme, GradeType, Scale
 import re
 
 import googleapiclient.errors
@@ -11,18 +10,12 @@ from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorS
 from cuter import app, screens, switch_screen  # Pared down versions of ^, to reduce cluttered code
 from google_sheets import get_sheet, write_sheet
 from preferences import prefs
+from grades import grade_schemes, GradeSet, load_grades
 
 '''
 Todo:
-    - Hook-ins for presets (i.e. hooks into student grades)
-    - Fix program such that empty classes don't...break things
-        - Disable generate on buttons that have nothing
-        - Load no sentences instead of trying to force populate on blank sentence preset pages
-        - "No sentences exist!" text if none exist 
-    - Add sentence in-program
-    - Drop settings, change report sheet button
-    - Support for grade rules
-    - Full reload button         
+    - Async spreadsheet loading?
+    - GUI so that user doesn't have to deal with weird text macros
 '''
 
 report_sheet = prefs.get_pref("report_sheet")
@@ -65,17 +58,18 @@ sentence_tabs = []
 class_students = []
 preset_list = {}
 sentences = []  # Should be populated with SentenceGroup elements
+grade_scheme_tabs = []
 grade_rules = []
 
+
 first_run = True
-
-
 
 def setup():
     global sheet
     global all_tabs
     global class_tabs
     global sentence_tabs
+    global grade_scheme_tabs
     global class_students
     global preset_list
     global grade_rules
@@ -84,16 +78,17 @@ def setup():
 
     sheet = setup_sheet(report_sheet if len(report_sheet) > 0 else None)
     all_tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
-    class_tabs = [tab for tab in all_tabs if str.isnumeric(tab[0][0])]
+    grade_scheme_tabs = [tab for tab in all_tabs if tab[0].startswith("Grade Scheme") or tab[0].startswith("Grade Rule")]
+    class_tabs = [tab for tab in all_tabs if len(tab[0].split("-"))==2]
     sentence_tabs = [tab for tab in all_tabs if tab[0].startswith("Sentences")]
     class_students = []
     preset_list = {}
     grade_rules = []
-    sentences = []
-    # if not first_run:
-    #     fill_class_data()
-    # first_run = False
-
+    if not first_run:
+        load_grades()
+        fill_class_data()
+        update_sentences()
+    first_run = False
 
 setup()
 
@@ -106,7 +101,7 @@ student_dropdown = Dropdown("Reports", student_label.x() + student_label.width()
 preset_button = Button("Reports", "Generate Preset", student_dropdown.x() + student_dropdown.width(), student_dropdown.y(), False)
 preset_dropdown = Dropdown("Reports", preset_button.x() + preset_button.width(), preset_button.y(), [], False)
 grade_button = Button("Reports", "Generate From Grades", preset_dropdown.x()+preset_dropdown.width(), preset_dropdown.y(), False)
-
+reload_grade_schemes_button = Button("Reports", "Reload Grade Rules", grade_button.x()+grade_button.width(), preset_dropdown.y(), False)
 
 generate_button = Button("Reports", "Generate", screens['Reports'].width()/2 - 20, 410)
 report_area = Textarea("Reports", "", 0, 450, screens['Reports'].width(), 250)
@@ -275,11 +270,11 @@ class SentenceGroup:
             ind -= 26
 
         if self.manual_delete:
-            tab_id = [tab[1] for tab in sentence_tabs if tab[0] == "Sentences " + class_dropdown.currentText()[0]]
+            tab_id = [tab[1] for tab in sentence_tabs if tab[0] == "Sentences " + class_dropdown.currentText().split("-")[0]]
             write_sheet(report_sheet, "", mode="COLUMNS", remove=[self.index, self.index+1], tab_id=tab_id[0])
         else:
             item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())] + ["", "", "", "", "", "", "", "", "", ""]
-            write_sheet(report_sheet, [item_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText()[0], col, col + str(item_list.__len__() + 10)), "COLUMNS")
+            write_sheet(report_sheet, [item_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0], col, col + str(item_list.__len__() + 10)), "COLUMNS")
 
 def fill_class_data():
     global report_sheet
@@ -300,6 +295,11 @@ def fill_class_data():
 
     #Drop the headers, iterate over all student rows
     if current_class is not None:
+        assignment_headers = None
+        scheme_headers = None
+        if len(current_class[0]) >= 5:
+            scheme_headers = [c.split("$")[-1] if len(c.split("$")) == 2 else 'IB' for c in current_class[0][4:]]
+            assignment_headers = [c.split("$")[0] if len(c.split("$")) == 2 else c for c in current_class[0][4:]]
         for student in current_class[1:]:
             class_students.append(
                 Student(
@@ -307,8 +307,8 @@ def fill_class_data():
                     student[1] if len(student) >= 2 else "", #Last Name
                     student[2] if len(student) >= 3 else "", #Gender
                     student[3] if len(student) >= 4 else "", #Report
-                    #Zip assignment names to grades
-                    dict(zip(current_class[0][4:], student[4:])) if len(student) >= 5 else {},
+                    #scheme, assignment, and student grades SHOULD all be the same length, so zip to iterate over all 3 to make grades dict
+                    {assignment:{'grade':grade, 'scheme':scheme} for assignment, grade, scheme in zip(assignment_headers, student[4:], scheme_headers)} if len(student) >= 5 else {},
                     class_dropdown.currentText(),
                     ro
                 )
@@ -316,10 +316,12 @@ def fill_class_data():
             ro+=1
 
         student_dropdown.addItems([student.first_name + " " + student.last_name for student in class_students])
-    if class_dropdown.history[-1][0] != class_dropdown.currentText()[0]:
+    if class_dropdown.history[-1].split("-")[0] != class_dropdown.currentText().split("-")[0]:
         update_sentences()
     class_dropdown.history.append(class_dropdown.currentText())
     update_report()
+
+
 
 def update_tab_order():
     global sentences
@@ -349,12 +351,11 @@ def update_sentences():
 
     if len(sentence_tabs) > 0:
         for tab in sentence_tabs:
-            if tab[0][-1] == class_dropdown.currentText()[0]:
-                for elem in sentences:
-                    elem.delete()
+            if tab[0].endswith(class_dropdown.currentText().split("-")[0]):
+                for elem in sentences: elem.delete()
                 sentences = []
                 print("Called update sentences...")
-                current_sentences = get_sheet(report_sheet, "{}!A1:Z1000".format("Sentences " + str(class_dropdown.currentText()[0])), "COLUMNS").get('values')
+                current_sentences = get_sheet(report_sheet, "{}!A1:Z1000".format("Sentences " + str(class_dropdown.currentText().split("-")[0])), "COLUMNS").get('values')
                 count = 0
                 ro = 0
                 if current_sentences is not None:
@@ -430,8 +431,6 @@ def populate_presets(sentence_set):
             preset_list[elem] = sorted(preset_list[elem], key=lambda e: int(e.index))
             preset_dropdown.addItem(elem)
 
-
-
 def update_report():
     global class_students
     global student_dropdown
@@ -486,23 +485,29 @@ def generate_report_from_grades():
 
     report_area.setText("")
     if len(class_students) > 0:
-        current_student = class_students[class_dropdown.currentIndex()]
+        current_student = class_students[student_dropdown.currentIndex()]
         chosen_options = {}
-
         for elem in grade_rules:
-            matches = lambda G: eval(elem.ruleset, {"__builtins__": None}) #this is a mistake waiting to happen
-            if elem.group in current_student.grades and matches(int(current_student.grades[elem.group])):
-                if elem.index in chosen_options:
-                    if chosen_options[elem.index].priority < elem.priority:
-                        chosen_options[elem.index] = elem
-                else:
-                    chosen_options[elem.index] = elem
+            tk = GradeSet.tokenize(elem.ruleset)
+            use_scheme = 'IB'
+            if len(tk) == 3:
+                if tk[0] in current_student.grades: use_scheme = current_student.grades[tk[0]]['scheme']
+                elif tk[2] in current_student.grades: use_scheme = current_student.grades[tk[2]]['scheme']
 
+                if GradeSet(use_scheme).evaluate(current_student.grades, elem.ruleset):
+                    if elem.index in chosen_options:
+                        #greater than because number is inverted
+                        if chosen_options[elem.index].priority > elem.priority:
+                            chosen_options[elem.index] = elem
+                    else:
+                        chosen_options[elem.index] = elem
         for option in chosen_options:
             report_area.setText(report_area.toPlainText() + replace_generics(chosen_options[option].text) + " ")
     report_area.repaint()
 
+load_grades()
 fill_class_data()
+
 class_dropdown.currentIndexChanged.connect(fill_class_data)
 student_dropdown.currentIndexChanged.connect(update_report)
 submit_button.clicked.connect(send_report)
@@ -511,6 +516,7 @@ preset_button.clicked.connect(generate_report_from_preset)
 grade_button.clicked.connect(generate_report_from_grades)
 reload_button.clicked.connect(setup)
 refresh_button.clicked.connect(update_sentences)
+reload_grade_schemes_button.clicked.connect(load_grades)
 add_sentence_button.clicked.connect(add_sentence)
 
 def replace_generics(fmt):
@@ -544,8 +550,6 @@ def replace_generics(fmt):
 
         return fmt.strip()
     else: return None
-
-
 
 if __name__ == "__main__":
     app.exec()

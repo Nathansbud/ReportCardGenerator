@@ -134,16 +134,17 @@ class GradeSet:
 
         return False
 
-    def evaluate(self, rule):
+    def evaluate(self, grades, rule):
         rule_parts = self.tokenize(rule)
         if len(rule_parts) == 3:
             arg1, arg2, op = rule_parts[0], rule_parts[2], rule_parts[1]
-            if arg1 in test_grades: arg1 = test_grades[arg1]
-            if arg2 in test_grades: arg2 = test_grades[arg2]
+            keys_lower = {k.lower():v for k,v in grades.items()}
+            if arg1 in keys_lower: arg1 = keys_lower[arg1]['grade']
+            if arg2 in keys_lower: arg2 = keys_lower[arg2]['grade']
             return self.compare(arg1, arg2, op)
         else:
             print("Invalid operator string")
-        return False
+            return False
 
     @staticmethod
     def tokenize(tstr):
@@ -154,18 +155,13 @@ class GradeSet:
 def mean(l):
     return sum(l) / len(l)
 
+def load_grades():
+    global grade_schemes
+    global default_schemes
 
-if __name__ == '__main__':
-    test_grades = {'Test 1': '6', 'Test 2': '7', 'Grade 3': '7', 'Grade 4': '7', 'Grade 5': '7'}
-    comp_str = GradeSet.tokenize("1 <= 2")
-
+    grade_schemes = deepcopy(default_schemes)
     grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format('Grade Rules'), mode='COLUMNS').get('values')
     for s in grade_rules:
         if s[0] != '':
             grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
-    #Load in grade presets from ^, for test cases those are DONKEY and LEVELS
-    print(GradeSet('LEVELS').evaluate("HIGH > LOW")) #True
-    print(GradeSet('DONKEY').evaluate("BUTT > BUM")) #True
-
-
 
