@@ -2,7 +2,7 @@ from enum import Enum, auto
 import re
 from preferences import prefs
 from google_sheets import get_sheet
-
+from copy import deepcopy
 
 class Scale(Enum):
     LINEAR = auto()
@@ -18,16 +18,19 @@ class GradeType(Enum):
 
 class GradeScheme:
     def __init__(self, name=None, lower_bound=None, upper_bound=None, pass_bound=None, scale=None, gtype=None, gset=None):
+        self.name = name
         self.scale = scale
         self.gtype = gtype
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
         self.pass_bound = pass_bound
-        self.gset = gset
-        self.name = name
+        if gset is not None:
+            self.gset = [g.lower() if isinstance(g, str) else g for g in gset if isinstance(g, str)]
+        else:
+            self.gset = None
 
 
-grade_schemes = {
+default_schemes = {
     'IB':GradeScheme(name='IB', lower_bound=1, upper_bound=7, pass_bound=3, scale=Scale.LINEAR, gtype=GradeType.INTEGER),
     'AP':GradeScheme(name='AP', lower_bound=1, upper_bound=5, pass_bound=3, scale=Scale.LINEAR, gtype=GradeType.INTEGER),
     'PERCENTAGE':GradeScheme(name='PERCENTAGE', lower_bound=0, upper_bound=100, pass_bound=60, scale=Scale.LINEAR, gtype=GradeType.NUMBER),
@@ -38,6 +41,7 @@ grade_schemes = {
         gset=["EX", "ME", "AP", "DM"])
 }
 
+grade_schemes = deepcopy(default_schemes)
 
 class GradeSet:
     operators = [
@@ -126,15 +130,25 @@ class GradeSet:
         if self.isnumeric() or self.scheme.gtype == GradeType.ALPHABETIC:
             return operator_set[operator](a, b)  # Simply direct compare numeric items
         elif self.scheme.gtype == GradeType.SET:
-            return operator_set[operator](self.scheme.gset.index(a), self.scheme.gset.index(
-                b))  # Grab indices of a linear set to compare i.e. in set ['C', 'B', 'A'], index('A') > index('C')
+            return operator_set[operator](self.scheme.gset.index(a), self.scheme.gset.index(b))  # Grab indices of a linear set to compare i.e. in set ['C', 'B', 'A'], index('A') > index('C')
 
+        return False
+
+    def evaluate(self, rule):
+        rule_parts = self.tokenize(rule)
+        if len(rule_parts) == 3:
+            arg1, arg2, op = rule_parts[0], rule_parts[2], rule_parts[1]
+            if arg1 in test_grades: arg1 = test_grades[arg1]
+            if arg2 in test_grades: arg2 = test_grades[arg2]
+            return self.compare(arg1, arg2, op)
+        else:
+            print("Invalid operator string")
         return False
 
     @staticmethod
     def tokenize(tstr):
         # split but keep tokens by using capture group on operators joined with or i.e. (>=|<=|>|<|==) which keeps matched ranges
-        return [elem.strip() for elem in re.split(f"({'|'.join(GradeSet.operators)})", tstr)]
+        return [elem.strip().lower() for elem in re.split(f"({'|'.join(GradeSet.operators)})", tstr)]
 
 
 def mean(l):
@@ -142,17 +156,16 @@ def mean(l):
 
 
 if __name__ == '__main__':
-    g = GradeSet(GradeScheme())
     test_grades = {'Test 1': '6', 'Test 2': '7', 'Grade 3': '7', 'Grade 4': '7', 'Grade 5': '7'}
     comp_str = GradeSet.tokenize("1 <= 2")
 
-    if len(comp_str) == 3:
-        arg1, arg2, op = comp_str[0], comp_str[2], comp_str[1]
-        if arg1 in test_grades: arg1 = test_grades[arg1]
-        if arg2 in test_grades: arg2 = test_grades[arg2]
-        print(g.compare(arg1, arg2, op))
-    else:
-        print("Invalid operator string")
+    grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format('Grade Rules'), mode='COLUMNS').get('values')
+    for s in grade_rules:
+        if s[0] != '':
+            grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
+    #Load in grade presets from ^, for test cases those are DONKEY and LEVELS
+    print(GradeSet('LEVELS').evaluate("HIGH > LOW")) #True
+    print(GradeSet('DONKEY').evaluate("BUTT > BUM")) #True
 
-    # grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format('Grade Rules'), mode='COLUMNS').get('values')
-    # GradeScheme[grade_rules[0][0]]
+
+
