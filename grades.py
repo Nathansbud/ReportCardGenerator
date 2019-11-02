@@ -1,4 +1,5 @@
 from enum import Enum, auto
+import re
 
 class Scale(Enum):
     LINEAR = auto()
@@ -65,16 +66,31 @@ class GradeScheme(Enum):
         'type':GradeType.SET
     }
 
+    def isnumeric(self):
+        return self.value['type'] == GradeType.INTEGER or self.value['type'] == GradeType.NUMBER
+
 class GradeSet:
+    operators = [
+        ">=", "<=", ">", "<", "=="
+    ]
+
     def __init__(self, scheme = GradeScheme.ALPHABETICAL_HALF):
         self.scheme = scheme
         self.s = self.scheme.value
 
     def is_valid(self, grade):
         if self.s['type'] == GradeType.INTEGER:
-            if self.s['lower_bound'] <= grade <= self.s['upper_bound'] and isinstance(grade, int):
+            if isinstance(grade, int) and self.s['lower_bound'] <= grade <= self.s['upper_bound']:
                 return True
             return False
+        elif self.scheme.isnumeric():
+            try:
+                if self.s['lower_bound'] <= float(grade) <= self.s['upper_bound']:
+                    return True
+                else:
+                    return False
+            except ValueError:
+                return False
         elif self.s['type'] == GradeType.ALPHABETIC:
            if isinstance(grade, str) and len(grade) == 1 and str.isalpha(grade):
                if self.s['scale'] == Scale.LINEAR_INVERT:
@@ -96,7 +112,7 @@ class GradeSet:
 
     def compare(self, a, b, operator):
         #Map all accepted operators to lambda functions, as inputs will always be numerical (either being numeric values of indices of values in a set)
-        if self.s['type'] == Scale.LINEAR:
+        if self.s['scale'] == Scale.LINEAR:
             operator_set = {
                 ">=": (lambda a1, a2: a1 >= a2),
                 ">": (lambda a1, a2: a1 > a2),
@@ -107,25 +123,63 @@ class GradeSet:
         else:
             # Switch operator lambdas for < and > families, as flipped list means flipped compares of indices
             operator_set = {
-                "<=": (lambda a1, a2: a1 >= a2),
+                "<=":(lambda a1, a2: a1 >= a2),
                 "<": (lambda a1, a2: a1 > a2),
                 ">": (lambda a1, a2: a1 < a2),
                 ">=": (lambda a1, a2: a1 <= a2),
                 "==": (lambda a1, a2: a1 == a2)
             }
 
-        if not self.validate(a, b) or not operator in operator_set: return False
-        if self.s['type'] == GradeType.INTEGER or self.s['type'] == GradeType.ALPHABETIC:
+        if self.scheme.isnumeric() and (isinstance(a, str) or isinstance(b, str)):
+            if self.s['type'] == GradeType.INTEGER:
+                if isinstance(a, str) and str.isdigit(a):
+                    a = int(a)
+                if isinstance(b, str) and str.isdigit(b):
+                    b = int(b)
+            elif self.s['type'] == GradeType.NUMBER:
+                if isinstance(a, str):
+                    try:
+                        a = float(a)
+                    except ValueError:
+                        return False
+                if isinstance(b, str):
+                    try:
+                        b = float(b)
+                    except ValueError:
+                        return False
+
+
+        if not self.validate(a, b) or not operator in operator_set:
+            return False
+        if self.scheme.isnumeric() or self.s['type'] == GradeType.ALPHABETIC:
             return operator_set[operator](a, b) #Simply direct compare numeric items
         elif self.s['type'] == GradeType.SET:
             return operator_set[operator](self.s['set'].index(a), self.s['set'].index(b)) #Grab indices of a linear set to compare i.e. in set ['C', 'B', 'A'], index('A') > index('C')
+
+
         return False
 
+    @staticmethod
+    def tokenize(tstr):
+        #split but keep tokens by using capture group on operators joined with or i.e. (>=|<=|>|<|==) which keeps matched ranges
+        return [elem.strip() for elem in re.split(f"({'|'.join(GradeSet.operators)})", tstr)]
+
+
+def mean(l):
+    return sum(l)/len(l)
+
 if __name__ == '__main__':
-    g = GradeSet(GradeScheme.ALPHABETICAL_WHOLE)
-    print(g.compare("B", "B", "=="))
+    g = GradeSet(GradeScheme.PERCENTAGE)
+    test_grades = {'Test 1': '6', 'Test 2': '7', 'Grade 3': '7', 'Grade 4': '7', 'Grade 5': '7'}
+    comp_str = GradeSet.tokenize("10 >= 6")
 
-
+    if len(comp_str) == 3:
+        arg1, arg2, op = comp_str[0], comp_str[2], comp_str[1]
+        if arg1 in test_grades: arg1 = test_grades[arg1]
+        if arg2 in test_grades: arg2 = test_grades[arg2]
+        print(g.compare(arg1, arg2, op))
+    else:
+        print("Invalid operator string")
 
 
 
