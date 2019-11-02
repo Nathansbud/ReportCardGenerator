@@ -131,14 +131,17 @@ class Input(QLineEdit):
         self.show()
 
 class Dropdown(QComboBox):
-    def __init__(self, screen, x, y, options):
+    def __init__(self, screen, x, y, options, focusOnTab=True):
         if screen in screens:
             self.screen = screen
             super(Dropdown, self).__init__(screens[screen])
         else:
             self.screen = None
         self.move(x, y)
-        self.setFocusPolicy(Qt.StrongFocus)
+        if focusOnTab:
+            self.setFocusPolicy(Qt.StrongFocus)
+        else:
+            self.setFocusPolicy(Qt.ClickFocus)
         self.addItems(options)
         self.lastSelected = " "
         self.history = [" "]
