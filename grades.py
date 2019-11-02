@@ -1,10 +1,14 @@
 from enum import Enum, auto
 import re
+from preferences import prefs
+from google_sheets import get_sheet
+
 
 class Scale(Enum):
     LINEAR = auto()
     LINEAR_INVERT = auto()
     NONE = auto()
+
 
 class GradeType(Enum):
     INTEGER = auto()
@@ -12,107 +16,76 @@ class GradeType(Enum):
     ALPHABETIC = auto()
     SET = auto()
 
-class GradeScheme(Enum):
-    IB = {
-        'lower_bound':1,
-        'upper_bound':7,
-        'pass_bound': 3,
-        'scale':Scale.LINEAR,
-        'type':GradeType.INTEGER
-    }
+class GradeScheme:
+    def __init__(self, name=None, lower_bound=None, upper_bound=None, pass_bound=None, scale=None, gtype=None, gset=None):
+        self.scale = scale
+        self.gtype = gtype
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
+        self.pass_bound = pass_bound
+        self.gset = gset
+        self.name = name
 
-    AP = {
-        'lower_bound':1,
-        'upper_bound':5,
-        'pass_bound': 3,
-        'scale':Scale.LINEAR,
-        'type':GradeType.INTEGER
-     }
 
-    PERCENTAGE = {
-        'lower_bound':0,
-        'upper_bound':100,
-        'pass_bound': 60,
-        'scale':Scale.LINEAR,
-        'type':GradeType.NUMBER
-    }
+grade_schemes = {
+    'IB':GradeScheme(name='IB', lower_bound=1, upper_bound=7, pass_bound=3, scale=Scale.LINEAR, gtype=GradeType.INTEGER),
+    'AP':GradeScheme(name='AP', lower_bound=1, upper_bound=5, pass_bound=3, scale=Scale.LINEAR, gtype=GradeType.INTEGER),
+    'PERCENTAGE':GradeScheme(name='PERCENTAGE', lower_bound=0, upper_bound=100, pass_bound=60, scale=Scale.LINEAR, gtype=GradeType.NUMBER),
+    'ALPHABETIC_WHOLE':GradeScheme(name='ALPHABETIC_WHOLE', lower_bound='F', upper_bound='A', pass_bound='C', scale=Scale.LINEAR_INVERT, gtype=GradeType.ALPHABETIC),
+    'ALPHABETIC_HALF':GradeScheme(name='ALPHABETIC_HALF', scale=Scale.LINEAR, pass_bound='D', gtype=GradeType.SET,
+                                  gset=['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']),
+    'ATL':GradeScheme(name='ATL', scale=Scale.LINEAR_INVERT, gtype=GradeType.SET, pass_bound='AP',
+        gset=["EX", "ME", "AP", "DM"])
+}
 
-    ALPHABETICAL_WHOLE = {
-        'lower_bound':'F',
-        'upper_bound':'A',
-        'pass_bound':'C',
-        'scale':Scale.LINEAR_INVERT,
-        'type':GradeType.ALPHABETIC
-    }
-
-    ALPHABETICAL_HALF = {
-        'set':['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+'],
-        'pass_bound': 'A+',
-        'scale':Scale.LINEAR,
-        'type':GradeType.SET
-    }
-
-    TIER_LIST = {
-        'set':['F', 'E', 'D', 'C', 'B', 'A', 'S', 'SS'],
-        'pass_bound':'C',
-        'scale':Scale.LINEAR,
-        'type':GradeType.SET
-    }
-
-    ATL = {
-        'set':["EX", "ME", "AP", "DM"],
-        'pass_bound':'AP',
-        'scale':Scale.LINEAR_INVERT,
-        'type':GradeType.SET
-    }
-
-    def isnumeric(self):
-        return self.value['type'] == GradeType.INTEGER or self.value['type'] == GradeType.NUMBER
 
 class GradeSet:
     operators = [
         ">=", "<=", ">", "<", "=="
     ]
 
-    def __init__(self, scheme = GradeScheme.ALPHABETICAL_HALF):
-        self.scheme = scheme
-        self.s = self.scheme.value
+    def __init__(self, scheme):
+        if isinstance(scheme, GradeScheme): self.scheme = scheme
+        elif isinstance(scheme, str) and scheme in grade_schemes: self.scheme = grade_schemes[scheme]
+
+    def isnumeric(self):
+        return self.scheme.gtype == GradeType.INTEGER or self.scheme.gtype == GradeType.NUMBER
 
     def is_valid(self, grade):
-        if self.s['type'] == GradeType.INTEGER:
-            if isinstance(grade, int) and self.s['lower_bound'] <= grade <= self.s['upper_bound']:
+        if self.scheme.gtype == GradeType.INTEGER:
+            if isinstance(grade, int) and self.scheme.lower_bound <= grade <= self.scheme.upper_bound:
                 return True
             return False
-        elif self.scheme.isnumeric():
+        elif self.isnumeric():
             try:
-                if self.s['lower_bound'] <= float(grade) <= self.s['upper_bound']:
+                if self.scheme.lower_bound <= float(grade) <= self.scheme.upper_bound:
                     return True
                 else:
                     return False
             except ValueError:
                 return False
-        elif self.s['type'] == GradeType.ALPHABETIC:
-           if isinstance(grade, str) and len(grade) == 1 and str.isalpha(grade):
-               if self.s['scale'] == Scale.LINEAR_INVERT:
-                   return self.s['upper_bound'] <= grade <= self.s['lower_bound']
-               elif self.s['scale'] == Scale.LINEAR:
-                   return self.s['upper_bound'] >= grade >= self.s['upper_bound']
-               return False
-        elif self.s['type'] == GradeType.SET:
-            return grade in self.s['set']
+        elif self.scheme.gtype == GradeType.ALPHABETIC:
+            if isinstance(grade, str) and len(grade) == 1 and str.isalpha(grade):
+                if self.scheme.scale == Scale.LINEAR_INVERT:
+                    return self.scheme.upper_bound <= grade <= self.scheme.lower_bound
+                elif self.scheme.scale == Scale.LINEAR:
+                    return self.scheme.upper_bound >= grade >= self.scheme.lower_bound
+                return False
+        elif self.scheme.gtype == GradeType.SET:
+            return grade in self.scheme.gset
         return False
 
     def validate(self, *args):
         return not (False in [self.is_valid(a) for a in args])
 
     def is_passing(self, grade):
-        if not 'pass_bound' in self.s: return True
-        if not self.validate(grade, self.s['pass_bound']): return False
-        return self.compare(grade, self.s['pass_bound'], ">=")
+        if self.scheme is None: return True
+        if not self.validate(grade, self.scheme.pass_bound): return False
+        return self.compare(grade, self.scheme.pass_bound, ">=")
 
     def compare(self, a, b, operator):
-        #Map all accepted operators to lambda functions, as inputs will always be numerical (either being numeric values of indices of values in a set)
-        if self.s['scale'] == Scale.LINEAR:
+        # Map all accepted operators to lambda functions, as inputs will always be numerical (either being numeric values of indices of values in a set)
+        if self.scheme.scale == Scale.LINEAR:
             operator_set = {
                 ">=": (lambda a1, a2: a1 >= a2),
                 ">": (lambda a1, a2: a1 > a2),
@@ -123,20 +96,20 @@ class GradeSet:
         else:
             # Switch operator lambdas for < and > families, as flipped list means flipped compares of indices
             operator_set = {
-                "<=":(lambda a1, a2: a1 >= a2),
+                "<=": (lambda a1, a2: a1 >= a2),
                 "<": (lambda a1, a2: a1 > a2),
                 ">": (lambda a1, a2: a1 < a2),
                 ">=": (lambda a1, a2: a1 <= a2),
                 "==": (lambda a1, a2: a1 == a2)
             }
 
-        if self.scheme.isnumeric() and (isinstance(a, str) or isinstance(b, str)):
-            if self.s['type'] == GradeType.INTEGER:
+        if self.isnumeric() and (isinstance(a, str) or isinstance(b, str)):
+            if self.scheme.gtype == GradeType.INTEGER:
                 if isinstance(a, str) and str.isdigit(a):
                     a = int(a)
                 if isinstance(b, str) and str.isdigit(b):
                     b = int(b)
-            elif self.s['type'] == GradeType.NUMBER:
+            elif self.scheme.gtype == GradeType.NUMBER:
                 if isinstance(a, str):
                     try:
                         a = float(a)
@@ -148,30 +121,30 @@ class GradeSet:
                     except ValueError:
                         return False
 
-
         if not self.validate(a, b) or not operator in operator_set:
             return False
-        if self.scheme.isnumeric() or self.s['type'] == GradeType.ALPHABETIC:
-            return operator_set[operator](a, b) #Simply direct compare numeric items
-        elif self.s['type'] == GradeType.SET:
-            return operator_set[operator](self.s['set'].index(a), self.s['set'].index(b)) #Grab indices of a linear set to compare i.e. in set ['C', 'B', 'A'], index('A') > index('C')
-
+        if self.isnumeric() or self.scheme.gtype == GradeType.ALPHABETIC:
+            return operator_set[operator](a, b)  # Simply direct compare numeric items
+        elif self.scheme.gtype == GradeType.SET:
+            return operator_set[operator](self.scheme.gset.index(a), self.scheme.gset.index(
+                b))  # Grab indices of a linear set to compare i.e. in set ['C', 'B', 'A'], index('A') > index('C')
 
         return False
 
     @staticmethod
     def tokenize(tstr):
-        #split but keep tokens by using capture group on operators joined with or i.e. (>=|<=|>|<|==) which keeps matched ranges
+        # split but keep tokens by using capture group on operators joined with or i.e. (>=|<=|>|<|==) which keeps matched ranges
         return [elem.strip() for elem in re.split(f"({'|'.join(GradeSet.operators)})", tstr)]
 
 
 def mean(l):
-    return sum(l)/len(l)
+    return sum(l) / len(l)
+
 
 if __name__ == '__main__':
-    g = GradeSet(GradeScheme.PERCENTAGE)
+    g = GradeSet(GradeScheme())
     test_grades = {'Test 1': '6', 'Test 2': '7', 'Grade 3': '7', 'Grade 4': '7', 'Grade 5': '7'}
-    comp_str = GradeSet.tokenize("10 >= 6")
+    comp_str = GradeSet.tokenize("1 <= 2")
 
     if len(comp_str) == 3:
         arg1, arg2, op = comp_str[0], comp_str[2], comp_str[1]
@@ -181,6 +154,5 @@ if __name__ == '__main__':
     else:
         print("Invalid operator string")
 
-
-
-
+    # grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format('Grade Rules'), mode='COLUMNS').get('values')
+    # GradeScheme[grade_rules[0][0]]

@@ -63,10 +63,14 @@ class_tabs = []
 sentence_tabs = []
 class_students = []
 preset_list = {}
-grade_rules = []
 sentences = []  # Should be populated with SentenceGroup elements
 
+grade_parser = GradeSet()
+grade_rules = []
+
 first_run = True
+
+
 
 def setup():
     global sheet
