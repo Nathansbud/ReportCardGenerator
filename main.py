@@ -5,7 +5,7 @@ import re
 
 import googleapiclient.errors
 
-from PyQt5.QtWidgets import QLineEdit, QInputDialog
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QDialog, QTableWidget, QTableWidgetItem, QSizePolicy, QWidget
 from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorSelector, Checkbox#, #Screen
 from cuter import app, screens, switch_screen  # Pared down versions of ^, to reduce cluttered code
 from google_sheets import get_sheet, write_sheet
@@ -60,6 +60,7 @@ preset_list = {}
 sentences = []  # Should be populated with SentenceGroup elements
 grade_scheme_tabs = []
 grade_rules = []
+grades_table = QTableWidget(screens['Grades'])
 
 
 first_run = True
@@ -107,19 +108,29 @@ generate_button = Button("Reports", "Generate", screens['Reports'].width()/2 - 2
 report_area = Textarea("Reports", "", 0, 450, screens['Reports'].width(), 250)
 submit_button = Button("Reports", "Submit", screens['Reports'].width()/2 - 20, 700)
 
+
 color_selector = ColorSelector("Reports")
 
-open_preferences_button = Button("Reports", "Open Preferences", screens['Reports'].width(), 0, False)
-open_preferences_button.move(screens['Reports'].width() - open_preferences_button.width(), 0)
-open_reports_button = Button("Preferences", "Open Reports", screens['Preferences'].width() - 50, 0, False)
-open_reports_button.move(screens['Preferences'].width() - open_reports_button.width(), 0)
+open_preferences_from_reports_button = Button("Reports", "Open Preferences", screens['Reports'].width(), 0, False)
+open_preferences_from_reports_button.move(screens['Reports'].width() - open_preferences_from_reports_button.width(), 0)
 
-open_preferences_button.clicked.connect(lambda: switch_screen("Preferences"))
-open_reports_button.clicked.connect(lambda: switch_screen("Reports"))
+open_reports_from_preferences_button = Button("Preferences", "Open Reports", screens['Preferences'].width() - 50, 0, False)
+open_reports_from_preferences_button.move(screens['Preferences'].width() - open_reports_from_preferences_button.width(), 0)
 
-reload_button = Button("Reports", "Reload", open_preferences_button.x(), open_preferences_button.y() + open_preferences_button.height(), False)
+open_grades_from_reports_button = Button("Reports", "Open Grades", reload_grade_schemes_button.x() + reload_grade_schemes_button.width(), preset_dropdown.y(), False)
+open_reports_from_grades_button = Button("Grades", "Open Reports", screens['Grades'].width() - 50, 0, False)
+open_reports_from_grades_button.move(screens['Grades'].width() - open_reports_from_preferences_button.width(), 0)
 
-background_color_button = Button("Preferences", "BG Color", screens['Preferences'].width() - 150, open_reports_button.y() + open_reports_button.height(), False)
+
+open_preferences_from_reports_button.clicked.connect(lambda: switch_screen("Preferences"))
+open_reports_from_preferences_button.clicked.connect(lambda: switch_screen("Reports"))
+open_grades_from_reports_button.clicked.connect(lambda: switch_screen("Grades"))
+open_reports_from_grades_button.clicked.connect(lambda: switch_screen("Reports"))
+
+
+reload_button = Button("Reports", "Reload", open_preferences_from_reports_button.x(), open_preferences_from_reports_button.y() + open_preferences_from_reports_button.height(), False)
+
+background_color_button = Button("Preferences", "BG Color", screens['Preferences'].width() - 150, open_reports_from_preferences_button.y() + open_reports_from_preferences_button.height(), False)
 text_color_button = Button("Preferences", "Text Color", screens['Preferences'].width() - 150, background_color_button.y() + background_color_button.height(), False)
 label_color_button = Button("Preferences", "Label Color", screens['Preferences'].width() - 150, text_color_button.y() + text_color_button.height(), False)
 
@@ -320,8 +331,7 @@ def fill_class_data():
         update_sentences()
     class_dropdown.history.append(class_dropdown.currentText())
     update_report()
-
-
+    setup_grades_table()
 
 def update_tab_order():
     global sentences
@@ -438,6 +448,7 @@ def update_report():
 
     if student_dropdown.count() > 0:
         report_area.setText(class_students[student_dropdown.currentIndex()].report)
+        setup_grades_table()
     else:
         report_area.setText("")
     report_area.repaint()
@@ -504,6 +515,38 @@ def generate_report_from_grades():
         for option in chosen_options:
             report_area.setText(report_area.toPlainText() + replace_generics(chosen_options[option].text) + " ")
     report_area.repaint()
+
+def setup_grades_table():
+    global class_students
+    global student_dropdown
+    global grades_table
+
+    if len(class_students) > 0:
+        current_student = class_students[student_dropdown.currentIndex()]
+        grades_table.deleteLater()
+        grades_table = QTableWidget(len(current_student.grades)+1 if current_student.grades else 1, 3, screens['Grades'])
+        grades_table.move(0, 0)
+        count = 0
+        grades_table.setItem(count, 0, QTableWidgetItem("Assignment"))
+        grades_table.setItem(count, 1, QTableWidgetItem("Grade"))
+        grades_table.setItem(count, 2, QTableWidgetItem("Scheme"))
+        count = 1
+        if current_student.grades:
+            for grade in current_student.grades:
+                grades_table.setItem(count, 0, QTableWidgetItem(grade))
+                grades_table.setItem(count, 1, QTableWidgetItem(current_student.grades[grade]['grade']))
+                grades_table.setItem(count, 2, QTableWidgetItem(current_student.grades[grade]['scheme']))
+                count+=1
+        grades_table.resizeColumnsToContents()
+        grades_table.resizeRowsToContents()
+        grades_table.show()
+    else:
+        grades_table.deleteLater()
+        grades_table = QTableWidget(1, 3, screens['Grades'])
+        grades_table.move(0, 0)
+        grades_table.setItem(0, 0, QTableWidgetItem("Assignment"))
+        grades_table.setItem(0, 1, QTableWidgetItem("Grade"))
+        grades_table.setItem(0, 2, QTableWidgetItem("Scheme"))
 
 load_grades()
 fill_class_data()

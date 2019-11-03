@@ -22,6 +22,7 @@ class Application(QApplication):
                 QPushButton, QComboBox {{color: {prefs.get_pref('txt_color') if not None else '#000000'};}}
                 QLabel {{color: {prefs.get_pref('lbl_color') if not None else '#ffffff'};}}
                 QWidget#Reports, QWidget#Preferences {{background: {prefs.get_pref('bg_color') if not None else '#000080'};}}
+                QTableWidget {{background:{prefs.get_pref('bg_color') if not None else '000080'};}}
             ''')
 
 app = Application("Report Card Generator", useStyle=True)
@@ -59,7 +60,8 @@ class Window(QWidget):
 
 screens = {
     "Reports":Window("Reports", 0, 0, 1000, 750, True),
-    "Preferences":Window("Preferences", 0, 0, 1000, 750, False)
+    "Preferences":Window("Preferences", 0, 0, 1000, 750, False),
+    "Grades":Window("Grades", 0, 0, 1000, 750, False)
 }
 
 def switch_screen(to):
