@@ -5,6 +5,7 @@ from google_sheets import get_sheet
 from copy import deepcopy
 
 class Scale(Enum):
+    BINARY = auto()
     LINEAR = auto()
     LINEAR_INVERT = auto()
     NONE = auto()
@@ -15,6 +16,7 @@ class GradeType(Enum):
     NUMBER = auto()
     ALPHABETIC = auto()
     SET = auto()
+    MAP = auto()
 
 class GradeScheme:
     def __init__(self, name=None, lower_bound=None, upper_bound=None, pass_bound=None, scale=None, gtype=None, gset=None):
@@ -38,7 +40,10 @@ default_schemes = {
     'ALPHABETIC_HALF':GradeScheme(name='ALPHABETIC_HALF', scale=Scale.LINEAR, pass_bound='D', gtype=GradeType.SET,
                                   gset=['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']),
     'ATL':GradeScheme(name='ATL', scale=Scale.LINEAR_INVERT, gtype=GradeType.SET, pass_bound='AP',
-        gset=["EX", "ME", "AP", "DM"])
+        gset=["EX", "ME", "AP", "DM"]),
+    #Need to figure out binary scale
+    # 'PASS':GradeScheme(name='PASS', scale=Scale.BINARY, gtype=GradeType.MAP, pass_bound='PASS', gset={"PASS":True, "FAIL":False}),
+    # 'TURN_IN':GradeScheme(name='TURN_IN', scale=Scale.BINARY, gtype=GradeType.MAP, pass_bound='TI', gset={"TI":True, "NTI":False})
 }
 
 grade_schemes = deepcopy(default_schemes)
@@ -77,6 +82,8 @@ class GradeSet:
                 return False
         elif self.scheme.gtype == GradeType.SET:
             return grade in self.scheme.gset
+        elif self.scheme.gtype == GradeType.MAP:
+            return grade in self.scheme.gset
         return False
 
     def validate(self, *args):
@@ -89,13 +96,14 @@ class GradeSet:
 
     def compare(self, a, b, operator):
         # Map all accepted operators to lambda functions, as inputs will always be numerical (either being numeric values of indices of values in a set)
-        if self.scheme.scale == Scale.LINEAR:
+        if not 'invert' in self.scheme.scale.name.lower():
             operator_set = {
                 ">=": (lambda a1, a2: a1 >= a2),
                 ">": (lambda a1, a2: a1 > a2),
                 "<": (lambda a1, a2: a1 < a2),
                 "<=": (lambda a1, a2: a1 <= a2),
-                "==": (lambda a1, a2: a1 == a2)
+                "==": (lambda a1, a2: a1 == a2),
+                "!=":(lambda a1, a2: a1 != a2)
             }
         else:
             # Switch operator lambdas for < and > families, as flipped list means flipped compares of indices
@@ -131,7 +139,8 @@ class GradeSet:
             return operator_set[operator](a, b)  # Simply direct compare numeric items
         elif self.scheme.gtype == GradeType.SET:
             return operator_set[operator](self.scheme.gset.index(a), self.scheme.gset.index(b))  # Grab indices of a linear set to compare i.e. in set ['C', 'B', 'A'], index('A') > index('C')
-
+        # elif self.scheme.gtype == GradeType.MAP:
+            # return
         return False
 
     def evaluate(self, grades, rule):
@@ -142,9 +151,10 @@ class GradeSet:
             if arg1 in keys_lower: arg1 = keys_lower[arg1]['grade']
             if arg2 in keys_lower: arg2 = keys_lower[arg2]['grade']
             return self.compare(arg1, arg2, op)
-        else:
-            print("Invalid operator string")
-            return False
+        # elif self.scheme == GradeType.MAP and len(grade_schemes) == 1:
+        #     keys_lower = {k.lower():v for k,v in grades.items()}
+        #     if rule_parts[0] in keys_lower: return bool(keys_lower[rule_parts[0]])
+        return False
 
     @staticmethod
     def tokenize(tstr):
@@ -164,4 +174,3 @@ def load_grades():
     for s in grade_rules:
         if s[0] != '':
             grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
-

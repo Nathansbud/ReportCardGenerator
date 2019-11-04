@@ -5,7 +5,7 @@ import re
 
 import googleapiclient.errors
 
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QDialog, QTableWidget, QTableWidgetItem, QSizePolicy, QWidget
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QDialog, QTableWidget, QTableWidgetItem, QSizePolicy, QWidget, QHeaderView
 from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorSelector, Checkbox#, #Screen
 from cuter import app, screens, switch_screen  # Pared down versions of ^, to reduce cluttered code
 from google_sheets import get_sheet, write_sheet
@@ -60,8 +60,6 @@ preset_list = {}
 sentences = []  # Should be populated with SentenceGroup elements
 grade_scheme_tabs = []
 grade_rules = []
-grades_table = QTableWidget(screens['Grades'])
-
 
 first_run = True
 
@@ -489,6 +487,47 @@ def generate_report_from_preset():
             report_area.setText(report_area.toPlainText() + replace_generics(elem.text) + " ")
     report_area.repaint()
 
+
+grades_label = Label('Grades', "Student has no grades! Try adding something!", 300, 50, visible=False)
+class GradeTable(QTableWidget):
+    def __init__(self, screen, header=["Assignment", "Grade", "Scheme"], data=None, x=None, y=None):
+        if screen in screens:
+            self.screen = screen
+            super(GradeTable, self).__init__(len(data) if data else 0, len(data[0]) if data else 0, screens[screen])
+        else:
+            self.screen = None
+        self.header = header
+        self.setHorizontalHeaderLabels(self.header)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.data = data
+        self.updateTable(self.data)
+        self.move(x, y)
+        self.show()
+
+
+    def updateTable(self, data=None):
+        global grades_label
+        self.setRowCount(0)
+        self.data = data
+        self.setRowCount(len(data) if data is not None else 0)
+        self.setColumnCount(len(data[0]) if data is not None and len(data) > 0 else 0)
+        if self.data:
+            self.show()
+            grades_label.hide()
+            for row in range(0, len(data)):
+                for col in range(0, len(data[row])):
+                    self.setItem(row, col, QTableWidgetItem(data[row][col]))
+        else:
+            self.hide()
+            grades_label.show()
+        self.resizeRowsToContents()
+        self.resizeColumnsToContents()
+        self.setHorizontalHeaderLabels(self.header)
+        self.repaint()
+
+grades_table = GradeTable('Grades', x=0, y=0)
+
 def generate_report_from_grades():
     global class_students
     global grade_rules
@@ -523,30 +562,9 @@ def setup_grades_table():
 
     if len(class_students) > 0:
         current_student = class_students[student_dropdown.currentIndex()]
-        grades_table.deleteLater()
-        grades_table = QTableWidget(len(current_student.grades)+1 if current_student.grades else 1, 3, screens['Grades'])
-        grades_table.move(0, 0)
-        count = 0
-        grades_table.setItem(count, 0, QTableWidgetItem("Assignment"))
-        grades_table.setItem(count, 1, QTableWidgetItem("Grade"))
-        grades_table.setItem(count, 2, QTableWidgetItem("Scheme"))
-        count = 1
-        if current_student.grades:
-            for grade in current_student.grades:
-                grades_table.setItem(count, 0, QTableWidgetItem(grade))
-                grades_table.setItem(count, 1, QTableWidgetItem(current_student.grades[grade]['grade']))
-                grades_table.setItem(count, 2, QTableWidgetItem(current_student.grades[grade]['scheme']))
-                count+=1
-        grades_table.resizeColumnsToContents()
-        grades_table.resizeRowsToContents()
-        grades_table.show()
+        grades_table.updateTable([[g, current_student.grades[g]['grade'], current_student.grades[g]['scheme']] for g in current_student.grades])
     else:
-        grades_table.deleteLater()
-        grades_table = QTableWidget(1, 3, screens['Grades'])
-        grades_table.move(0, 0)
-        grades_table.setItem(0, 0, QTableWidgetItem("Assignment"))
-        grades_table.setItem(0, 1, QTableWidgetItem("Grade"))
-        grades_table.setItem(0, 2, QTableWidgetItem("Scheme"))
+        grades_table.updateTable()
 
 load_grades()
 fill_class_data()

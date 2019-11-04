@@ -107,7 +107,7 @@ class Button(QPushButton):
             exit()
 
 class Label(QLabel):
-    def __init__(self, screen, text, x, y):
+    def __init__(self, screen, text, x, y, visible=True):
         if screen in screens:
             self.screen = screen
             super(Label, self).__init__(screens[screen])
@@ -117,7 +117,7 @@ class Label(QLabel):
         self.setText(text)
         self.move(x, y)
         self.setupFont()
-        self.show()
+        if visible: self.show()
 
     def setupFont(self, size=24, font_family="Arial"):
         self.setFont(QFont(font_family, size, QFont.Bold))
