@@ -141,9 +141,9 @@ add_sentence_button = Button("Reports", "Add Sentence", 0, refresh_button.y() + 
 
 class Student:
     pronouns = {
-        "M": ["he", "his", "him", "his"],
-        "F": ["she", "her", "her", "hers"],
-        "T": ["they", "their", "them", "theirs"]
+        "M": ["he", "his", "him", "his", "himself"],
+        "F": ["she", "her", "her", "hers", "herself"],
+        "T": ["they", "their", "them", "theirs", "themselves"]
     }
 
     def __init__(self, first_name, last_name, gender, report, grades, classroom, offset):
@@ -293,7 +293,6 @@ def fill_class_data():
     global student_dropdown
     global report_area
     global row_offset
-
 
     student_dropdown.clear()
     class_students = []
@@ -446,7 +445,6 @@ def update_report():
 
     if student_dropdown.count() > 0:
         report_area.setText(class_students[student_dropdown.currentIndex()].report)
-        setup_grades_table()
     else:
         report_area.setText("")
     report_area.repaint()
@@ -501,13 +499,29 @@ class GradeTable(QTableWidget):
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Fixed)
         self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
         self.data = data
-        self.updateTable(self.data)
+        self.itemChanged.connect(self.cellIsChanged)
         self.move(x, y)
         self.show()
+
+    def cellIsChanged(self, item):
+        global class_students
+        global student_dropdown
+
+        if class_students is not None and student_dropdown.count() > 0:
+            current_student = class_students[student_dropdown.currentIndex()]
+            col = item.column()
+            row = item.row()
+
+            print(f"Edited: ({col}, {row}) | Value: {item.text()}")
+            # print(current_student.grades[])
+
+            # if self.horizontalHeaderItem(col) is not None:
+            #     if self.horizontalHeaderItem(col).text() == "Grade":
 
 
     def updateTable(self, data=None):
         global grades_label
+
         self.setRowCount(0)
         self.data = data
         self.setRowCount(len(data) if data is not None else 0)
@@ -521,9 +535,9 @@ class GradeTable(QTableWidget):
         else:
             self.hide()
             grades_label.show()
+        self.setHorizontalHeaderLabels(self.header)
         self.resizeRowsToContents()
         self.resizeColumnsToContents()
-        self.setHorizontalHeaderLabels(self.header)
         self.repaint()
 
 grades_table = GradeTable('Grades', x=0, y=0)
@@ -596,7 +610,8 @@ def replace_generics(fmt):
             p1=ps[0],
             p2=ps[1],
             p3=ps[2],
-            p4=ps[3]
+            p4=ps[3],
+            p5=ps[4]
         ).replace("@", current_student.first_name).replace("#", ps[0]).replace("$", ps[1]).replace("%", ps[2]).replace("^", ps[3])
         if current_student.gender == "T":
             fmt = fmt.replace("they is", "they are")
