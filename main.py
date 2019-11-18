@@ -325,10 +325,16 @@ def fill_class_data(class_index=None):
         if current_class is not None:
             assignment_headers = None
             scheme_headers = None
+            grade_list = None
             if len(current_class[0]) >= 5:
                 scheme_headers = [c.split("$")[-1] if len(c.split("$")) == 2 else 'IB' for c in current_class[0][4:]]
                 assignment_headers = [c.split("$")[0] if len(c.split("$")) == 2 else c for c in current_class[0][4:]]
+                grade_list = [""]*len(assignment_headers) #make blank list of grades, as grade # might be > assignment header
+
             for student in current_class[1:]:
+                for i in range(0, len(grade_list)): #loop over grade_list to fill
+                    if i >= len(student[4:]): grade_list[i] = ""
+                    else: grade_list[i] = student[4:][i]
                 class_students.append(
                     Student(
                         student[0], #First Name
@@ -336,7 +342,7 @@ def fill_class_data(class_index=None):
                         student[2] if len(student) >= 3 else "", #Gender
                         student[3] if len(student) >= 4 else "", #Report
                         #scheme, assignment, and student grades SHOULD all be the same length, so zip to iterate over all 3 to make grades dict
-                        {assignment:{'grade':grade, 'scheme':scheme} for assignment, grade, scheme in zip(assignment_headers, student[4:], scheme_headers)} if len(student) >= 5 else {},
+                        {assignment:{'grade':grade, 'scheme':scheme} for assignment, grade, scheme in zip(assignment_headers, grade_list, scheme_headers)},
                         class_name,
                         ro
                     )
@@ -349,6 +355,9 @@ def fill_class_data(class_index=None):
         class_dropdown.history.append(class_name)
         update_report()
         setup_grades_table()
+
+
+
 
 def update_tab_order():
     global sentences
@@ -470,7 +479,6 @@ def update_report(index=None):
         report_area.setText("")
     report_area.repaint()
 
-
 def send_report():
     global class_students
     global student_dropdown
@@ -542,7 +550,6 @@ class GradeTable(QTableWidget):
             row = item.row()
 
             print(f"Edited: ({col}, {row}) | Value: {item.text()}")
-            print(current_student.grades)
             if self.horizontalHeaderItem(col) is not None and self.horizontalHeaderItem(col).text() == "Grade":
                 print(f'Old: {self.oldText} | New: {item.text()}')
                 scheme = self.item(row, col+1)
@@ -622,11 +629,15 @@ def setup_grades_table():
     else:
         grades_table.updateTable()
 
+def update_student(index=None):
+    update_report(index)
+    setup_grades_table()
+
 load_grades()
 fill_class_data()
 
 class_dropdown.currentIndexChanged.connect(fill_class_data)
-student_dropdown.currentIndexChanged.connect(update_report)
+student_dropdown.currentIndexChanged.connect(update_student)
 submit_button.clicked.connect(send_report)
 generate_button.clicked.connect(generate_report)
 preset_button.clicked.connect(generate_report_from_preset)
