@@ -52,7 +52,10 @@ def setup_sheet(report=None):
         report = None
 
 report_column = "D"
+report_column_index = 3
+
 grades_column = "E"
+grades_column_index = 4
 
 row_offset = 2
 
@@ -144,6 +147,14 @@ label_color_button.clicked.connect(lambda: color_selector.updateColor("Label Col
 refresh_button = Button("Reports", "Refresh Sentences", 0, 0, False)
 add_sentence_button = Button("Reports", "Add Sentence", 0, refresh_button.y() + refresh_button.height(), False)
 
+def index_to_column(index):
+    col = ""
+    ind = index
+    for i in range(0, floor(index/26 + 1)):
+        col += str(chr(ind % 26 + 65))
+        ind -= 26
+    return col
+
 class Student:
     pronouns = {
         "M": ["he", "his", "him", "his", "himself"],
@@ -164,22 +175,14 @@ class Student:
         global report_sheet
         global report_column
         global grades_column
+        global grades_column_index
+
         if not report:
             report = self.report
         write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.offset)))
 
     def write_grades(self):
-        #
-        # col = ""
-        #
-        # ind = self.index
-        # times = floor(ind/26 + 1)
-        #
-        # for i in range(0, times):
-        #     col += str(chr(ind % 26 + 65))
-        #     ind -= 26
-        #
-        write_sheet(report_sheet, [g['grade'] for g in self.grades.values()], "{}!{}:{}".format(self.classroom, grades_column + str(self.offset), "" + str(self.offset)))
+        write_sheet(report_sheet, [[g['grade'] for g in self.grades.values()]], "{}!{}:{}".format(self.classroom, grades_column + str(self.offset), index_to_column(grades_column_index + len(self.grades)) + str(self.offset)))
 
     def get_pronouns(self):
         if self.gender:
@@ -288,15 +291,7 @@ class SentenceGroup:
         global report_sheet
         global sentence_tabs
 
-        col = ""
-
-        ind = self.index
-        times = floor(ind/26 + 1)
-
-        for i in range(0, times):
-            col += str(chr(ind % 26 + 65))
-            ind -= 26
-
+        col = index_to_column(self.index)
         if self.manual_delete:
             tab_id = [tab[1] for tab in sentence_tabs if tab[0] == "Sentences " + class_dropdown.currentText().split("-")[0]]
             write_sheet(report_sheet, "", mode="COLUMNS", remove=[self.index, self.index+1], tab_id=tab_id[0])
