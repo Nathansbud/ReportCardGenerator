@@ -8,7 +8,7 @@ import googleapiclient.errors
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QDialog, QTableWidget, QTableWidgetItem, QSizePolicy, QWidget, QHeaderView
 from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorSelector, Checkbox#, #Screen
 from cuter import app, screens, switch_screen  # Pared down versions of ^, to reduce cluttered code
-from google_sheets import get_sheet, write_sheet
+from sheets import get_sheet, write_sheet
 from preferences import prefs
 from grades import grade_schemes, GradeSet, load_grades
 
@@ -16,6 +16,7 @@ from grades import grade_schemes, GradeSet, load_grades
 Todo:
     - Async spreadsheet loading?
     - GUI so that user doesn't have to deal with weird text macros
+    - Excel API in addition to google sheets; offline and online versions
 '''
 
 report_sheet = prefs.get_pref("report_sheet")
@@ -285,7 +286,7 @@ class SentenceGroup:
             item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())] + ["", "", "", "", "", "", "", "", "", ""]
             write_sheet(report_sheet, [item_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0], col, col + str(item_list.__len__() + 10)), "COLUMNS")
 
-def fill_class_data():
+def fill_class_data(class_index=None):
     global report_sheet
     global class_students
     global class_dropdown
@@ -296,39 +297,45 @@ def fill_class_data():
 
     student_dropdown.clear()
     class_students = []
+    if class_index:
+        class_name = class_tabs[class_index][0]
+    elif class_dropdown.count() > 0:
+        class_name = class_dropdown.currentText()
+    else:
+        class_name = None
 
-    #Get full class sheet, including headers
-    current_class = get_sheet(report_sheet, "{}!A1:Z1000".format(class_dropdown.currentText())).get('values')
-    ro = row_offset #Row offset
+    if class_name:
+        current_class = get_sheet(report_sheet, "{}!A1:Z1000".format(class_name)).get('values')
+        ro = row_offset #Row offset
 
-    #Drop the headers, iterate over all student rows
-    if current_class is not None:
-        assignment_headers = None
-        scheme_headers = None
-        if len(current_class[0]) >= 5:
-            scheme_headers = [c.split("$")[-1] if len(c.split("$")) == 2 else 'IB' for c in current_class[0][4:]]
-            assignment_headers = [c.split("$")[0] if len(c.split("$")) == 2 else c for c in current_class[0][4:]]
-        for student in current_class[1:]:
-            class_students.append(
-                Student(
-                    student[0], #First Name
-                    student[1] if len(student) >= 2 else "", #Last Name
-                    student[2] if len(student) >= 3 else "", #Gender
-                    student[3] if len(student) >= 4 else "", #Report
-                    #scheme, assignment, and student grades SHOULD all be the same length, so zip to iterate over all 3 to make grades dict
-                    {assignment:{'grade':grade, 'scheme':scheme} for assignment, grade, scheme in zip(assignment_headers, student[4:], scheme_headers)} if len(student) >= 5 else {},
-                    class_dropdown.currentText(),
-                    ro
+        #Drop the headers, iterate over all student rows
+        if current_class is not None:
+            assignment_headers = None
+            scheme_headers = None
+            if len(current_class[0]) >= 5:
+                scheme_headers = [c.split("$")[-1] if len(c.split("$")) == 2 else 'IB' for c in current_class[0][4:]]
+                assignment_headers = [c.split("$")[0] if len(c.split("$")) == 2 else c for c in current_class[0][4:]]
+            for student in current_class[1:]:
+                class_students.append(
+                    Student(
+                        student[0], #First Name
+                        student[1] if len(student) >= 2 else "", #Last Name
+                        student[2] if len(student) >= 3 else "", #Gender
+                        student[3] if len(student) >= 4 else "", #Report
+                        #scheme, assignment, and student grades SHOULD all be the same length, so zip to iterate over all 3 to make grades dict
+                        {assignment:{'grade':grade, 'scheme':scheme} for assignment, grade, scheme in zip(assignment_headers, student[4:], scheme_headers)} if len(student) >= 5 else {},
+                        class_name,
+                        ro
+                    )
                 )
-            )
-            ro+=1
+                ro+=1
 
-        student_dropdown.addItems([student.first_name + " " + student.last_name for student in class_students])
-    if class_dropdown.history[-1].split("-")[0] != class_dropdown.currentText().split("-")[0]:
-        update_sentences()
-    class_dropdown.history.append(class_dropdown.currentText())
-    update_report()
-    setup_grades_table()
+            student_dropdown.addItems([student.first_name + " " + student.last_name for student in class_students])
+        if class_dropdown.history[-1].split("-")[0] != class_name.split("-")[0]:
+            update_sentences()
+        class_dropdown.history.append(class_name)
+        update_report()
+        setup_grades_table()
 
 def update_tab_order():
     global sentences
@@ -438,12 +445,13 @@ def populate_presets(sentence_set):
             preset_list[elem] = sorted(preset_list[elem], key=lambda e: int(e.index))
             preset_dropdown.addItem(elem)
 
-def update_report():
+def update_report(index=None):
     global class_students
     global student_dropdown
     global report_area
-
-    if student_dropdown.count() > 0:
+    if index:
+        report_area.setText(class_students[index].report)
+    elif student_dropdown.count() > 0:
         report_area.setText(class_students[student_dropdown.currentIndex()].report)
     else:
         report_area.setText("")

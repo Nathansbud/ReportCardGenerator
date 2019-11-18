@@ -1,7 +1,7 @@
 from enum import Enum, auto
 import re
 from preferences import prefs
-from google_sheets import get_sheet
+from sheets import get_sheet
 from copy import deepcopy
 
 class Scale(Enum):

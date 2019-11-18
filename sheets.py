@@ -3,6 +3,7 @@ import os.path
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+import openpyxl
 
 def make_token(scope, cred_name):
     creds = None
@@ -58,7 +59,9 @@ def write_sheet(sheet, values, r='', mode="ROWS", remove=None, tab_id=None):
             }
         }).execute()
 
+def get_excel_sheet(path):
+    return openpyxl.load_workbook(path)
 
 if __name__ == '__main__':
-    pass
-
+    sheet = get_excel_sheet('/Users/zackamiton/Desktop/Test.xlsx')
+    print([cell for cell in [row for row in sheet.active.rows]])
