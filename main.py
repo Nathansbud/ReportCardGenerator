@@ -6,6 +6,8 @@ import re
 import googleapiclient.errors
 
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QDialog, QTableWidget, QTableWidgetItem, QSizePolicy, QWidget, QHeaderView
+from PyQt5.QtGui import QRegExpValidator
+from PyQt5.QtCore import Qt
 from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorSelector, Checkbox#, #Screen
 from cuter import app, screens, switch_screen  # Pared down versions of ^, to reduce cluttered code
 from sheets import get_sheet, write_sheet
@@ -50,6 +52,8 @@ def setup_sheet(report=None):
         report = None
 
 report_column = "D"
+grades_column = "E"
+
 row_offset = 2
 
 sheet = []
@@ -159,9 +163,23 @@ class Student:
     def submit_report(self, report=None):
         global report_sheet
         global report_column
+        global grades_column
         if not report:
             report = self.report
         write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.offset)))
+
+    def write_grades(self):
+        #
+        # col = ""
+        #
+        # ind = self.index
+        # times = floor(ind/26 + 1)
+        #
+        # for i in range(0, times):
+        #     col += str(chr(ind % 26 + 65))
+        #     ind -= 26
+        #
+        write_sheet(report_sheet, [g['grade'] for g in self.grades.values()], "{}!{}:{}".format(self.classroom, grades_column + str(self.offset), "" + str(self.offset)))
 
     def get_pronouns(self):
         if self.gender:
@@ -496,7 +514,7 @@ def generate_report_from_preset():
 
 grades_label = Label('Grades', "Student has no grades! Try adding something!", 300, 50, visible=False)
 class GradeTable(QTableWidget):
-    def __init__(self, screen, header=["Assignment", "Grade", "Scheme"], data=None, x=None, y=None):
+    def __init__(self, screen, header=["Assignment", "Grade", "Scheme"], data=None, x=None, y=None, w=None, h=None):
         if screen in screens:
             self.screen = screen
             super(GradeTable, self).__init__(len(data) if data else 0, len(data[0]) if data else 0, screens[screen])
@@ -508,8 +526,16 @@ class GradeTable(QTableWidget):
         self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
         self.data = data
         self.itemChanged.connect(self.cellIsChanged)
+        self.cellClicked.connect(self.cellOpened)
+        self.oldText = None
+        self.setGeometry(x, y, w, h)
         self.move(x, y)
         self.show()
+
+
+    def cellOpened(self, row, column):
+        self.oldText = self.item(row, column).text()
+        print(column, row, self.oldText)
 
     def cellIsChanged(self, item):
         global class_students
@@ -521,11 +547,21 @@ class GradeTable(QTableWidget):
             row = item.row()
 
             print(f"Edited: ({col}, {row}) | Value: {item.text()}")
-            # print(current_student.grades[])
-
-            # if self.horizontalHeaderItem(col) is not None:
-            #     if self.horizontalHeaderItem(col).text() == "Grade":
-
+            print(current_student.grades)
+            if self.horizontalHeaderItem(col) is not None and self.horizontalHeaderItem(col).text() == "Grade":
+                print(f'Old: {self.oldText} | New: {item.text()}')
+                scheme = self.item(row, col+1)
+                assignment = self.item(row, col - 1)
+                if scheme is not None and not GradeSet(scheme.text()).is_valid(item.text()):
+                    print(f'{item.text()} is invalid! Reverting to {self.oldText}')
+                    item.setText(self.oldText)
+                elif scheme is not None:
+                    current_student.grades[assignment.text()]['grade'] = item.text()
+                    grades_thread = Thread(target=current_student.write_grades)
+                    grades_thread.start()
+                self.oldText = item.text()
+        self.resizeRowsToContents()
+        self.resizeColumnsToContents()
 
     def updateTable(self, data=None):
         global grades_label
@@ -534,12 +570,15 @@ class GradeTable(QTableWidget):
         self.data = data
         self.setRowCount(len(data) if data is not None else 0)
         self.setColumnCount(len(data[0]) if data is not None and len(data) > 0 else 0)
+        self.setHorizontalHeaderLabels(self.header)
         if self.data:
             self.show()
             grades_label.hide()
             for row in range(0, len(data)):
                 for col in range(0, len(data[row])):
-                    self.setItem(row, col, QTableWidgetItem(data[row][col]))
+                    item = QTableWidgetItem(data[row][col])
+                    if self.horizontalHeaderItem(col).text() != "Grade": item.setFlags(Qt.ItemIsEnabled)
+                    self.setItem(row, col, item)
         else:
             self.hide()
             grades_label.show()
@@ -548,7 +587,7 @@ class GradeTable(QTableWidget):
         self.resizeColumnsToContents()
         self.repaint()
 
-grades_table = GradeTable('Grades', x=0, y=0)
+grades_table = GradeTable('Grades', x=0, y=0, w=700, h=700)
 
 def generate_report_from_grades():
     global class_students

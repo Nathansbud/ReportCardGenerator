@@ -56,12 +56,20 @@ class GradeSet:
     def __init__(self, scheme):
         if isinstance(scheme, GradeScheme): self.scheme = scheme
         elif isinstance(scheme, str) and scheme in grade_schemes: self.scheme = grade_schemes[scheme]
+        else: self.scheme = None
 
     def isnumeric(self):
         return self.scheme.gtype == GradeType.INTEGER or self.scheme.gtype == GradeType.NUMBER
 
     def is_valid(self, grade):
-        if self.scheme.gtype == GradeType.INTEGER:
+        if self.scheme is None:
+            return False
+        elif self.scheme.gtype == GradeType.INTEGER:
+            if isinstance(grade, str):
+                try:
+                    grade = int(grade)
+                except ValueError:
+                    return False
             if isinstance(grade, int) and self.scheme.lower_bound <= grade <= self.scheme.upper_bound:
                 return True
             return False
@@ -81,9 +89,9 @@ class GradeSet:
                     return self.scheme.upper_bound >= grade >= self.scheme.lower_bound
                 return False
         elif self.scheme.gtype == GradeType.SET:
-            return grade in self.scheme.gset
+            return grade.lower() in self.scheme.gset
         elif self.scheme.gtype == GradeType.MAP:
-            return grade in self.scheme.gset
+            return grade.lower() in self.scheme.gset
         return False
 
     def validate(self, *args):
@@ -174,3 +182,7 @@ def load_grades():
     for s in grade_rules:
         if s[0] != '':
             grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
+
+if __name__ == '__main__':
+    print(GradeSet('ATL').scheme.gset)
+    pass
