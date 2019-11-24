@@ -84,6 +84,8 @@ def setup():
     global grade_rules
     global sentences
     global first_run
+    global class_dropdown
+    global student_dropdown
 
     sheet = setup_sheet(report_sheet if len(report_sheet) > 0 else None)
     all_tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
@@ -94,9 +96,16 @@ def setup():
     preset_list = {}
     grade_rules = []
     if not first_run:
+        class_dropdown.currentIndexChanged.disconnect()
+        student_dropdown.currentIndexChanged.disconnect()
+
         load_grades()
         fill_class_data()
         update_sentences()
+
+        class_dropdown.currentIndexChanged.connect(fill_class_data)
+        student_dropdown.currentIndexChanged.connect(update_student)
+        # this disconnect/reconnect seems like poor form; it fixes the crash but maybe look for a more elegant method
     first_run = False
 
 setup()
@@ -720,9 +729,6 @@ def replace_generics(fmt):
 
         return fmt.strip()
     else: return None
-
-
-
 
 if __name__ == "__main__":
     app.exec()
