@@ -21,7 +21,6 @@ Todo:
     - Excel API in addition to google sheets; offline and online versions
     - Dropdown menus should display formatted text
     - Fix queue order failing in submitted threads (i.e. if 7 6 is recieved after 7 7, 7 6 will save)
-    - Error checking for the user to catch their mistakes (he, his, himself...) that don't get edited out
 '''
 
 report_sheet = prefs.get_pref("report_sheet")
@@ -692,22 +691,18 @@ def replace_generics(fmt):
             "{p5}":ps[4], "`":ps[4]
         }
 
-        try:
-            fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip()
-            for key in replace_set:
-                fmt = fmt.replace(key, replace_set[key])
-            # fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip().format(
-            #     name=current_student.first_name,
-            #     p1=ps[0],
-            #     p2=ps[1],
-            #     p3=ps[2],
-            #     p4=ps[3],
-            #     p5=ps[4]
-            # ).replace("@", current_student.first_name).replace("#", ps[0]).replace("$", ps[1]).replace("%", ps[2]).replace("^", ps[3])
-        except KeyError:
-            print("One of your keys (things inside of {}) does not exist! Try editing your sentence...")
+        fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip()
+        for key in replace_set:
+            fmt = fmt.replace(key, replace_set[key])
         if current_student.gender == "T":
             fmt = fmt.replace("they is", "they are")
+
+        #Error Check
+        for mp, fp in zip(Student.pronouns['M'], Student.pronouns['F']):
+            if current_student.gender == 'M':
+                fmt = re.sub(f'(?i)\\b{fp}\\b', mp, fmt)
+            elif current_student.gender == "F":
+                fmt = re.sub(f'(?i)\\b{mp}\\b', fp, fmt)
 
         punctuationIndices = []
         capitalizationIndices = [0]
@@ -721,6 +716,7 @@ def replace_generics(fmt):
 
         for index in capitalizationIndices:
             fmt = fmt[0:index] + fmt[index].upper() + fmt[index+1:]
+
 
         return fmt.strip()
     else: return None
