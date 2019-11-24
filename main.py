@@ -707,15 +707,18 @@ def replace_generics(fmt):
         fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip()
         for key in replace_set:
             fmt = fmt.replace(key, replace_set[key])
-        if current_student.gender == "T":
-            fmt = fmt.replace("they is", "they are")
 
         #Error Check
-        for mp, fp in zip(Student.pronouns['M'], Student.pronouns['F']):
-            if current_student.gender == 'M':
+        for mp, fp, tp in zip(Student.pronouns['M'], Student.pronouns['F'], Student.pronouns['T']):
+            if current_student.gender == "M":
                 fmt = re.sub(f'(?i)\\b{fp}\\b', mp, fmt)
             elif current_student.gender == "F":
                 fmt = re.sub(f'(?i)\\b{mp}\\b', fp, fmt)
+            elif current_student.gender == "T":
+                fmt = re.sub(f'(?i)\\b({mp}|{fp})\\b', tp, fmt)
+
+        if current_student.gender == "T":
+            fmt = fmt.replace("they is", "they are")
 
         punctuationIndices = []
         capitalizationIndices = [0]
