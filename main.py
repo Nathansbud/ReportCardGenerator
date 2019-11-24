@@ -280,9 +280,12 @@ class SentenceGroup:
             if SentenceGroup.dialog.exec():
                 replace, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Replacement Option", "Replace '{}' With:".format(SentenceGroup.dialog.textValue()), QLineEdit.Normal, SentenceGroup.dialog.textValue())
                 if ok and len(replace) > 0:
-                    item_list[item_list.index(SentenceGroup.dialog.textValue())] = replace
+                    index = item_list.index(SentenceGroup.dialog.textValue())
+                    item_list[index] = replace
                     self.dropdown.clear()
                     self.dropdown.addItems(item_list)
+                    self.dropdown.setCurrentIndex(index)
+
                     sentence_thread = Thread(target=self.write_sentences)
                     sentence_thread.start()
         else:
@@ -656,42 +659,51 @@ refresh_button.clicked.connect(update_sentences)
 reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 add_sentence_button.clicked.connect(add_sentence)
 
+def make_lowercase_generics(fmt):
+    substr = fmt
+    has_match = True
+    matches = []
+    while has_match:
+        matched = re.search('{(.*?)}', substr)
+        if not matched:
+            break
+        else:
+            matches.append((matched.start() + (len(fmt) - len(substr)), matched.end() + (len(fmt) - len(substr))))
+            substr = substr[matched.end():]
+    for match in matches:
+        substr = substr[0:match[0]] + fmt[match[0]:match[1]].lower() + fmt[match[1]:]
+    return substr
+
 def replace_generics(fmt):
     global student_dropdown
     global class_students
     global pronouns
-
-    #Todo: get this working, trying to case insensitive match between templated args
-    # template_sections = []
-    # found = True
-    # start = 0
-    # while found:
-    #     matched = re.search('{(.*?)}', fmt[start:])
-    #     print(matched)
-    #     if matched:
-    #         template_sections.append(matched)
-    #         start = matched.end()
-    #     else:
-    #         break
-    # print(template_sections)
-
     if len(class_students) > 0:
+        fmt = make_lowercase_generics(fmt)
         current_student = class_students[student_dropdown.currentIndex()]
         ps = current_student.get_pronouns()
 
-        #* = Preset
-        #~ = Grade Preset
+        replace_set = {
+            "{name}":current_student.first_name, "@":current_student.first_name,
+            "{p1}":ps[0], "#":ps[0],
+            "{p2}":ps[1], "$":ps[1],
+            "{p3}":ps[2], "%":ps[2],
+            "{p4}":ps[3], "^":ps[3],
+            "{p5}":ps[4], "`":ps[4]
+        }
 
         try:
-            fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip().format(
-                name=current_student.first_name,
-                Name=current_student.first_name,
-                p1=ps[0],
-                p2=ps[1],
-                p3=ps[2],
-                p4=ps[3],
-                p5=ps[4]
-            ).replace("@", current_student.first_name).replace("#", ps[0]).replace("$", ps[1]).replace("%", ps[2]).replace("^", ps[3])
+            fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip()
+            for key in replace_set:
+                fmt = fmt.replace(key, replace_set[key])
+            # fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip().format(
+            #     name=current_student.first_name,
+            #     p1=ps[0],
+            #     p2=ps[1],
+            #     p3=ps[2],
+            #     p4=ps[3],
+            #     p5=ps[4]
+            # ).replace("@", current_student.first_name).replace("#", ps[0]).replace("$", ps[1]).replace("%", ps[2]).replace("^", ps[3])
         except KeyError:
             print("One of your keys (things inside of {}) does not exist! Try editing your sentence...")
         if current_student.gender == "T":
@@ -712,6 +724,9 @@ def replace_generics(fmt):
 
         return fmt.strip()
     else: return None
+
+
+
 
 if __name__ == "__main__":
     app.exec()
