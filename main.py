@@ -19,6 +19,8 @@ Todo:
     - Async spreadsheet loading?
     - GUI so that user doesn't have to deal with weird text macros
     - Excel API in addition to google sheets; offline and online versions
+    - Dropdown menus should display formatted text
+    - Fix queue order failing in submitted threads (i.e. if 7 6 is recieved after 7 7, 7 6 will save)
 '''
 
 report_sheet = prefs.get_pref("report_sheet")
@@ -194,7 +196,6 @@ class SentenceGroup:
     dialog = QInputDialog(screens['Reports'])
     dialog.setOption(QInputDialog.UseListViewForComboBoxItems)
     def __init__(self, label, x, y, options, index):
-
         self.index = index
 
         self.x = x
@@ -531,6 +532,7 @@ class GradeTable(QTableWidget):
         self.itemChanged.connect(self.cellIsChanged)
         self.cellClicked.connect(self.cellOpened)
         self.oldText = None
+        self.oldCell = ()
         self.setGeometry(x, y, w, h)
         self.move(x, y)
         self.show()
@@ -538,12 +540,14 @@ class GradeTable(QTableWidget):
 
     def cellOpened(self, row, column):
         self.oldText = self.item(row, column).text()
+        self.oldCell = (row, column)
         print(column, row, self.oldText)
 
     def cellIsChanged(self, item):
         global class_students
         global student_dropdown
 
+        if self.oldCell != (item.row(), item.column()): self.oldText = ""
         if class_students is not None and student_dropdown.count() > 0:
             current_student = class_students[student_dropdown.currentIndex()]
             col = item.column()
@@ -556,6 +560,7 @@ class GradeTable(QTableWidget):
                 assignment = self.item(row, col - 1)
                 if scheme is not None and not GradeSet(scheme.text()).is_valid(item.text()):
                     print(f'{item.text()} is invalid! Reverting to {self.oldText}')
+                    pass
                     item.setText(self.oldText)
                 elif scheme is not None:
                     current_student.grades[assignment.text()]['grade'] = item.text()
@@ -633,7 +638,7 @@ def update_student(index=None):
     update_report(index)
     setup_grades_table()
 
-load_grades()
+load_grades(grade_scheme_tabs)
 fill_class_data()
 
 class_dropdown.currentIndexChanged.connect(fill_class_data)
@@ -644,13 +649,27 @@ preset_button.clicked.connect(generate_report_from_preset)
 grade_button.clicked.connect(generate_report_from_grades)
 reload_button.clicked.connect(setup)
 refresh_button.clicked.connect(update_sentences)
-reload_grade_schemes_button.clicked.connect(load_grades)
+reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 add_sentence_button.clicked.connect(add_sentence)
 
 def replace_generics(fmt):
     global student_dropdown
     global class_students
     global pronouns
+
+    #Todo: get this working, trying to case insensitive match between templated args
+    # template_sections = []
+    # found = True
+    # start = 0
+    # while found:
+    #     matched = re.search('{(.*?)}', fmt[start:])
+    #     print(matched)
+    #     if matched:
+    #         template_sections.append(matched)
+    #         start = matched.end()
+    #     else:
+    #         break
+    # print(template_sections)
 
     if len(class_students) > 0:
         current_student = class_students[student_dropdown.currentIndex()]
@@ -669,19 +688,25 @@ def replace_generics(fmt):
         if current_student.gender == "T":
             fmt = fmt.replace("they is", "they are")
 
-        capitalizationIndices = []
-        for i in range(0, len(fmt)):
-            if fmt[i] == "." or fmt[i] == "!" or fmt[i] == "?": capitalizationIndices.append(i)
+        punctuationIndices = []
+        capitalizationIndices = [0]
 
-        for index in capitalizationIndices:
+        for i in range(0, len(fmt)):
+            if fmt[i] == "." or fmt[i] == "!" or fmt[i] == "?": punctuationIndices.append(i)
+
+        for index in punctuationIndices:
             if index + 2 < len(fmt):
                 fmt = fmt[0:index + 2] + fmt[index + 2].upper() + fmt[index + 3:]
+
+        for index in capitalizationIndices:
+            fmt = fmt[0:index] + fmt[index].upper() + fmt[index+1:]
 
         return fmt.strip()
     else: return None
 
 if __name__ == "__main__":
     app.exec()
+
 
 
 

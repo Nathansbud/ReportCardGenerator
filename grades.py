@@ -173,16 +173,14 @@ class GradeSet:
 def mean(l):
     return sum(l) / len(l)
 
-def load_grades():
+def load_grades(grade_tabs=None):
     global grade_schemes
     global default_schemes
 
     grade_schemes = deepcopy(default_schemes)
-    grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format('Grade Rules'), mode='COLUMNS').get('values')
-    for s in grade_rules:
-        if s[0] != '':
-            grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
-
-if __name__ == '__main__':
-    print(GradeSet('ATL').scheme.gset)
-    pass
+    if grade_tabs:
+        for tab in grade_tabs:
+            grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format(tab[0]), mode='COLUMNS').get('values')
+            for s in grade_rules:
+                if s[0] != '':
+                    grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
