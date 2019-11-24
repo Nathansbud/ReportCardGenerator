@@ -16,7 +16,7 @@ from grades import grade_schemes, GradeSet, load_grades
 
 '''
 Todo:
-    - Async spreadsheet loading?
+    - Async spreadsheet loading (or a modal dialog)
     - GUI so that user doesn't have to deal with weird text macros
     - Excel API in addition to google sheets; offline and online versions
     - Dropdown menus should display formatted text
@@ -678,8 +678,12 @@ def make_lowercase_generics(fmt):
         else:
             matches.append((matched.start() + (len(fmt) - len(substr)), matched.end() + (len(fmt) - len(substr))))
             substr = substr[matched.end():]
+
+    substr = fmt
+
     for match in matches:
         substr = substr[0:match[0]] + fmt[match[0]:match[1]].lower() + fmt[match[1]:]
+
     return substr
 
 def replace_generics(fmt):
