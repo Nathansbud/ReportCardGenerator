@@ -3,9 +3,6 @@ from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont
 
 from sys import exit
-import os
-import json
-
 from preferences import prefs
 
 class Application(QApplication):

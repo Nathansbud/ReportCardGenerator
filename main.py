@@ -6,7 +6,7 @@ import re
 import googleapiclient.errors
 
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QDialog, QTableWidget, QTableWidgetItem, QSizePolicy, QWidget, QHeaderView
-from PyQt5.QtGui import QRegExpValidator
+from PyQt5.QtGui import QBrush, QColor
 from PyQt5.QtCore import Qt
 from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorSelector, Checkbox#, #Screen
 from cuter import app, screens, switch_screen  # Pared down versions of ^, to reduce cluttered code
@@ -21,6 +21,7 @@ Todo:
     - Excel API in addition to google sheets; offline and online versions
     - Dropdown menus should display formatted text
     - Fix queue order failing in submitted threads (i.e. if 7 6 is recieved after 7 7, 7 6 will save)
+    - Error checking for the user to catch their mistakes (he, his, himself...) that don't get edited out
 '''
 
 report_sheet = prefs.get_pref("report_sheet")
@@ -333,9 +334,10 @@ def fill_class_data(class_index=None):
                 grade_list = [""]*len(assignment_headers) #make blank list of grades, as grade # might be > assignment header
 
             for student in current_class[1:]:
-                for i in range(0, len(grade_list)): #loop over grade_list to fill
-                    if i >= len(student[4:]): grade_list[i] = ""
-                    else: grade_list[i] = student[4:][i]
+                if grade_list:
+                    for i in range(0, len(grade_list)): #loop over grade_list to fill
+                        if i >= len(student[4:]): grade_list[i] = ""
+                        else: grade_list[i] = student[4:][i]
                 class_students.append(
                     Student(
                         student[0], #First Name
@@ -343,7 +345,7 @@ def fill_class_data(class_index=None):
                         student[2] if len(student) >= 3 else "", #Gender
                         student[3] if len(student) >= 4 else "", #Report
                         #scheme, assignment, and student grades SHOULD all be the same length, so zip to iterate over all 3 to make grades dict
-                        {assignment:{'grade':grade, 'scheme':scheme} for assignment, grade, scheme in zip(assignment_headers, grade_list, scheme_headers)},
+                        {assignment:{'grade':grade, 'scheme':scheme} for assignment, grade, scheme in zip(assignment_headers, grade_list, scheme_headers)} if assignment_headers else {},
                         class_name,
                         ro
                     )
@@ -584,6 +586,7 @@ class GradeTable(QTableWidget):
             for row in range(0, len(data)):
                 for col in range(0, len(data[row])):
                     item = QTableWidgetItem(data[row][col])
+                    item.setForeground(QBrush(QColor(255, 0, 0))) #there is no way to set table info via CSS
                     if self.horizontalHeaderItem(col).text() != "Grade": item.setFlags(Qt.ItemIsEnabled)
                     self.setItem(row, col, item)
         else:
@@ -593,6 +596,7 @@ class GradeTable(QTableWidget):
         self.resizeRowsToContents()
         self.resizeColumnsToContents()
         self.repaint()
+        app.changeStyle()
 
 grades_table = GradeTable('Grades', x=0, y=0, w=700, h=700)
 
@@ -677,14 +681,19 @@ def replace_generics(fmt):
 
         #* = Preset
         #~ = Grade Preset
-        fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip().format(
-            name=current_student.first_name,
-            p1=ps[0],
-            p2=ps[1],
-            p3=ps[2],
-            p4=ps[3],
-            p5=ps[4]
-        ).replace("@", current_student.first_name).replace("#", ps[0]).replace("$", ps[1]).replace("%", ps[2]).replace("^", ps[3])
+
+        try:
+            fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip().format(
+                name=current_student.first_name,
+                Name=current_student.first_name,
+                p1=ps[0],
+                p2=ps[1],
+                p3=ps[2],
+                p4=ps[3],
+                p5=ps[4]
+            ).replace("@", current_student.first_name).replace("#", ps[0]).replace("$", ps[1]).replace("%", ps[2]).replace("^", ps[3])
+        except KeyError:
+            print("One of your keys (things inside of {}) does not exist! Try editing your sentence...")
         if current_student.gender == "T":
             fmt = fmt.replace("they is", "they are")
 
