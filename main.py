@@ -201,6 +201,77 @@ class Student:
         else:
             return Student.pronouns["T"]
 
+
+def replace_generics(fmt):
+    global student_dropdown
+    global class_students
+    global pronouns
+    if len(class_students) > 0:
+        fmt = make_lowercase_generics(fmt)
+        current_student = class_students[student_dropdown.currentIndex()]
+        ps = current_student.get_pronouns()
+
+        replace_set = {
+            "{name}":current_student.first_name, "@":current_student.first_name,
+            "{p1}":ps[0], "#":ps[0],
+            "{p2}":ps[1], "$":ps[1],
+            "{p3}":ps[2], "%":ps[2],
+            "{p4}":ps[3], "^":ps[3],
+            "{p5}":ps[4], "`":ps[4]
+        }
+
+        fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip()
+        for key in replace_set:
+            fmt = fmt.replace(key, replace_set[key])
+
+        #Error Check
+        for mp, fp, tp in zip(Student.pronouns['M'], Student.pronouns['F'], Student.pronouns['T']):
+            if current_student.gender == "M":
+                fmt = re.sub(f'(?i)\\b{fp}\\b', mp, fmt)
+            elif current_student.gender == "F":
+                fmt = re.sub(f'(?i)\\b{mp}\\b', fp, fmt)
+            elif current_student.gender == "T":
+                fmt = re.sub(f'(?i)\\b({mp}|{fp})\\b', tp, fmt)
+
+        if current_student.gender == "T":
+            fmt = fmt.replace("they is", "they are")
+
+        punctuationIndices = []
+        capitalizationIndices = [0]
+
+        for i in range(0, len(fmt)):
+            if fmt[i] == "." or fmt[i] == "!" or fmt[i] == "?": punctuationIndices.append(i)
+
+        for index in punctuationIndices:
+            if index + 2 < len(fmt):
+                fmt = fmt[0:index + 2] + fmt[index + 2].upper() + fmt[index + 3:]
+
+        for index in capitalizationIndices:
+            fmt = fmt[0:index] + fmt[index].upper() + fmt[index+1:]
+
+
+        return fmt.strip()
+    else: return None
+
+def make_lowercase_generics(fmt):
+    substr = fmt
+    has_match = True
+    matches = []
+    while has_match:
+        matched = re.search('{(.*?)}', substr)
+        if not matched:
+            break
+        else:
+            matches.append((matched.start() + (len(fmt) - len(substr)), matched.end() + (len(fmt) - len(substr))))
+            substr = substr[matched.end():]
+
+    substr = fmt
+
+    for match in matches:
+        substr = substr[0:match[0]] + fmt[match[0]:match[1]].lower() + fmt[match[1]:]
+
+    return substr
+
 class SentenceGroup:
     dialog = QInputDialog(screens['Reports'])
     dialog.setOption(QInputDialog.UseListViewForComboBoxItems)
@@ -212,7 +283,8 @@ class SentenceGroup:
 
         self.checkbox = Checkbox("Reports", x, y)
         self.label = Label("Reports", label, x + self.checkbox.width(), y)
-        self.dropdown = Dropdown("Reports", self.label.x() + self.label.width(), y, options)
+        self.options = options #real value of sentences
+        self.dropdown = Dropdown("Reports", self.label.x() + self.label.width(), y, [replace_generics(option) for option in options])
 
         self.add = Button("Reports", "+", self.dropdown.x() + self.dropdown.width(), y, False)
         self.remove = Button("Reports", "-", self.add.x() + self.add.width(), y, False)
@@ -233,6 +305,7 @@ class SentenceGroup:
         self.change.move(self.remove.x() + self.remove.width(), y)
 
     def delete(self):
+        self.options = None
         self.dropdown.deleteLater()
         self.label.deleteLater()
         self.checkbox.deleteLater()
@@ -243,7 +316,8 @@ class SentenceGroup:
     def addOption(self):
         text, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Add Option", "Sentence", QLineEdit.Normal, "")
         if ok and len(text) > 0:
-            self.dropdown.addItem(text)
+            self.options.append(text) 
+            self.dropdown.addItem(replace_generics(text))
             self.dropdown.setCurrentIndex(self.dropdown.count()-1)
             self.checkbox.setChecked(True)
 
@@ -252,15 +326,14 @@ class SentenceGroup:
 
     def removeOption(self):
         if self.dropdown.count() > 0:
-            item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())]
-            SentenceGroup.dialog.setComboBoxItems(item_list)
+            SentenceGroup.dialog.setComboBoxItems(self.options)
             SentenceGroup.dialog.setWindowTitle("Remove Item")
             SentenceGroup.dialog.setLabelText("Choose an item to remove:")
 
             if SentenceGroup.dialog.exec():
-                item_list.remove(SentenceGroup.dialog.textValue())
+                self.options.remove(SentenceGroup.dialog.textValue())
                 self.dropdown.clear()
-                self.dropdown.addItems(item_list)
+                self.dropdown.addItems([replace_generics(option) for option in self.options])
                 if self.dropdown.count() == 0:
                     self.checkbox.setChecked(False)
                 sentence_thread = Thread(target=self.write_sentences)
@@ -281,17 +354,16 @@ class SentenceGroup:
 
     def editOption(self):
         if self.dropdown.count() > 0:
-            item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())]
-            SentenceGroup.dialog.setComboBoxItems(item_list)
+            SentenceGroup.dialog.setComboBoxItems(self.options)
             SentenceGroup.dialog.setWindowTitle("Edit Item")
             SentenceGroup.dialog.setLabelText("Choose an item to edit:")
             if SentenceGroup.dialog.exec():
                 replace, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Replacement Option", "Replace '{}' With:".format(SentenceGroup.dialog.textValue()), QLineEdit.Normal, SentenceGroup.dialog.textValue())
                 if ok and len(replace) > 0:
-                    index = item_list.index(SentenceGroup.dialog.textValue())
-                    item_list[index] = replace
+                    index = self.options.index(SentenceGroup.dialog.textValue())
+                    self.options[index] = replace
                     self.dropdown.clear()
-                    self.dropdown.addItems(item_list)
+                    self.dropdown.addItems([replace_generics(option) for option in self.options])
                     self.dropdown.setCurrentIndex(index)
 
                     sentence_thread = Thread(target=self.write_sentences)
@@ -309,8 +381,8 @@ class SentenceGroup:
             tab_id = [tab[1] for tab in sentence_tabs if tab[0] == "Sentences " + class_dropdown.currentText().split("-")[0]]
             write_sheet(report_sheet, "", mode="COLUMNS", remove=[self.index, self.index+1], tab_id=tab_id[0])
         else:
-            item_list = [self.dropdown.itemText(i) for i in range(self.dropdown.count())] + ["", "", "", "", "", "", "", "", "", ""]
-            write_sheet(report_sheet, [item_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0], col, col + str(item_list.__len__() + 10)), "COLUMNS")
+            buffer_list = ["", "", "", "", ""] #account for the fact that in removing, there are floating cells not part of options; have a 5-long buffer to manage that
+            write_sheet(report_sheet, [self.options+buffer_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0], col, col + str(len(self.options) + 1 + len(buffer_list))), "COLUMNS")
 
 def fill_class_data(class_index=None):
     global report_sheet
@@ -512,7 +584,7 @@ def generate_report():
     if len(class_students) > 0:
         for sentence in sentences:
             if sentence.checkbox.isChecked():
-                report_area.setText(report_area.toPlainText() + replace_generics(sentence.dropdown.currentText())+" ")
+                report_area.setText(report_area.toPlainText() + replace_generics(sentence.dropdown.currentText()) + " ")
     report_area.repaint()
 
 def generate_report_from_preset():
@@ -609,7 +681,7 @@ class GradeTable(QTableWidget):
         self.repaint()
         app.changeStyle()
 
-grades_table = GradeTable('Grades', x=0, y=0, w=700, h=700)
+grades_table = GradeTable('Grades', x=0, y=0, w=700, h=screens['Reports'].height())
 
 def generate_report_from_grades():
     global class_students
@@ -650,8 +722,15 @@ def setup_grades_table():
         grades_table.updateTable()
 
 def update_student(index=None):
+    global sentences
+
     update_report(index)
     setup_grades_table()
+    for sentence in sentences:
+        sentence.dropdown.clear()
+        sentence.dropdown.addItems([replace_generics(formatted) for formatted in sentence.options])
+
+
 
 load_grades(grade_scheme_tabs)
 fill_class_data()
@@ -667,75 +746,8 @@ refresh_button.clicked.connect(update_sentences)
 reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 add_sentence_button.clicked.connect(add_sentence)
 
-def make_lowercase_generics(fmt):
-    substr = fmt
-    has_match = True
-    matches = []
-    while has_match:
-        matched = re.search('{(.*?)}', substr)
-        if not matched:
-            break
-        else:
-            matches.append((matched.start() + (len(fmt) - len(substr)), matched.end() + (len(fmt) - len(substr))))
-            substr = substr[matched.end():]
-
-    substr = fmt
-
-    for match in matches:
-        substr = substr[0:match[0]] + fmt[match[0]:match[1]].lower() + fmt[match[1]:]
-
-    return substr
-
-def replace_generics(fmt):
-    global student_dropdown
-    global class_students
-    global pronouns
-    if len(class_students) > 0:
-        fmt = make_lowercase_generics(fmt)
-        current_student = class_students[student_dropdown.currentIndex()]
-        ps = current_student.get_pronouns()
-
-        replace_set = {
-            "{name}":current_student.first_name, "@":current_student.first_name,
-            "{p1}":ps[0], "#":ps[0],
-            "{p2}":ps[1], "$":ps[1],
-            "{p3}":ps[2], "%":ps[2],
-            "{p4}":ps[3], "^":ps[3],
-            "{p5}":ps[4], "`":ps[4]
-        }
-
-        fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip()
-        for key in replace_set:
-            fmt = fmt.replace(key, replace_set[key])
-
-        #Error Check
-        for mp, fp, tp in zip(Student.pronouns['M'], Student.pronouns['F'], Student.pronouns['T']):
-            if current_student.gender == "M":
-                fmt = re.sub(f'(?i)\\b{fp}\\b', mp, fmt)
-            elif current_student.gender == "F":
-                fmt = re.sub(f'(?i)\\b{mp}\\b', fp, fmt)
-            elif current_student.gender == "T":
-                fmt = re.sub(f'(?i)\\b({mp}|{fp})\\b', tp, fmt)
-
-        if current_student.gender == "T":
-            fmt = fmt.replace("they is", "they are")
-
-        punctuationIndices = []
-        capitalizationIndices = [0]
-
-        for i in range(0, len(fmt)):
-            if fmt[i] == "." or fmt[i] == "!" or fmt[i] == "?": punctuationIndices.append(i)
-
-        for index in punctuationIndices:
-            if index + 2 < len(fmt):
-                fmt = fmt[0:index + 2] + fmt[index + 2].upper() + fmt[index + 3:]
-
-        for index in capitalizationIndices:
-            fmt = fmt[0:index] + fmt[index].upper() + fmt[index+1:]
 
 
-        return fmt.strip()
-    else: return None
 
 if __name__ == "__main__":
     app.exec()
