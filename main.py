@@ -1,13 +1,17 @@
+import re
+import os
+
 from threading import Thread
 from math import floor
 
-import re
-
+import openpyxl.utils.exceptions
 import googleapiclient.errors
 
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QDialog, QTableWidget, QTableWidgetItem, QSizePolicy, QWidget, QHeaderView
 from PyQt5.QtGui import QBrush, QColor
 from PyQt5.QtCore import Qt
+
+
 from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorSelector, Checkbox#, #Screen
 from cuter import app, screens, switch_screen  # Pared down versions of ^, to reduce cluttered code
 from sheets import get_sheet, write_sheet
@@ -28,29 +32,36 @@ report_sheet = prefs.get_pref("report_sheet")
 def setup_sheet(report=None):
     global report_sheet
 
-    passed = False
-    ask_for = "Input report sheet ID:"
-    while not passed:
-        if report is None:
+    ask_for = "Input link/path to spreadsheet:"
+    while True:
+        if not report:
             report, ok = QInputDialog(screens["Reports"]).getText(screens["Reports"], "Report Sheet", ask_for, QLineEdit.Normal, "")
 
-        check_is = ["d", "https:", "spreadsheets", "http:", "docs.google.com", '']
-        check_starts = ["edit#"]
-
-        report = [part for part in report.split('/') if not part in check_is and not part.startswith(*check_starts)]
-        if len(report) != 1:
-            print("Something went wrong with your link!")
-            print(report)
-            report = None
-        else:
+        if os.path.isfile(report):
             try:
-                sheet_data = get_sheet(report[0])
-                report_sheet = report[0]
-                prefs.update_pref("report_sheet", report[0])
-                return sheet_data
-            except googleapiclient.errors.HttpError:
-                ask_for = "Something went wrong getting your reports! Input report sheet ID:"
-                report = None
+                workbook = openpyxl.load_workbook(report)
+                prefs.update_pref("is_web", False)
+                prefs.update_pref("report_sheet", report)
+                return workbook
+            except openpyxl.utils.exceptions.InvalidFileException:
+                ask_for = "Invalid Excel file! Input a correct link/file path:"
+        else:
+            check_is = ["d", "https:", "spreadsheets", "http:", "docs.google.com", '']
+            check_starts = ["edit#"]
+
+            report = [part for part in report.split('/') if not part in check_is and not part.startswith(*check_starts)]
+            if len(report) != 1:
+                print("Something went wrong with your link!")
+                print(report)
+            else:
+                try:
+                    sheet_data = get_sheet(report[0])
+                    report_sheet = report[0]
+                    prefs.update_pref("report_sheet", report[0])
+                    prefs.update_pref("is_web", True)
+                    return sheet_data
+                except googleapiclient.errors.HttpError:
+                    ask_for = "Something went wrong getting your reports! Input report link/file path:"
         report = None
 
 report_column = "D"
@@ -62,6 +73,7 @@ grades_column_index = 4
 row_offset = 2
 
 sheet = []
+all_tab_pairs = []
 all_tabs = []
 class_tabs = []
 sentence_tabs = []
@@ -75,6 +87,7 @@ first_run = True
 
 def setup():
     global sheet
+    global all_tab_pairs
     global all_tabs
     global class_tabs
     global sentence_tabs
@@ -88,10 +101,18 @@ def setup():
     global student_dropdown
 
     sheet = setup_sheet(report_sheet if len(report_sheet) > 0 else None)
-    all_tabs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
-    grade_scheme_tabs = [tab for tab in all_tabs if tab[0].startswith("Grade Scheme") or tab[0].startswith("Grade Rule")]
-    class_tabs = [tab for tab in all_tabs if len(tab[0].split("-"))==2]
-    sentence_tabs = [tab for tab in all_tabs if tab[0].startswith("Sentences")]
+    if prefs.get_pref('is_web'):
+        all_tabs_pairs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
+        all_tabs = [name[0] for name in all_tabs_pairs]
+        grade_scheme_tabs = [tab for tab in all_tabs if tab.startswith("Grade Scheme") or tab.startswith("Grade Rule")]
+        class_tabs = [tab for tab in all_tabs if len(tab.split("-"))==2]
+        sentence_tabs = [tab for tab in all_tabs if tab.startswith("Sentences")]
+    else:
+        all_tabs = sheet.sheetnames
+        grade_scheme_tabs = [tab for tab in all_tabs if tab.startswith("Grade Scheme")]
+        class_tabs = [tab for tab in all_tabs if len(tab.split("-"))==2]
+        sentence_tabs = [tab for tab in all_tabs if tab.startswith("Sentences")]
+
     class_students = []
     preset_list = {}
     grade_rules = []
@@ -111,7 +132,7 @@ def setup():
 setup()
 
 class_label = Label("Reports", "Class: ", screens['Reports'].width() / 2.5, 15)
-class_dropdown = Dropdown("Reports", class_label.x() + class_label.width(), class_label.y(), [tab[0] for tab in class_tabs])
+class_dropdown = Dropdown("Reports", class_label.x() + class_label.width(), class_label.y(), [tab for tab in class_tabs])
 
 student_label = Label("Reports", "Name: ", 50, 75)
 student_dropdown = Dropdown("Reports", student_label.x() + student_label.width(), student_label.y(), [])
@@ -128,16 +149,17 @@ submit_button = Button("Reports", "Submit", screens['Reports'].width()/2 - 20, 7
 
 color_selector = ColorSelector("Reports")
 
-open_preferences_from_reports_button = Button("Reports", "Open Preferences", screens['Reports'].width(), 0, False)
-open_preferences_from_reports_button.move(screens['Reports'].width() - open_preferences_from_reports_button.width(), 0)
 
+open_grades_from_reports_button = Button("Reports", "Open Grades", screens['Reports'].width(), 0, False)
+open_grades_from_reports_button.move(screens['Reports'].width() - open_grades_from_reports_button.width(), 0)
+
+open_preferences_from_reports_button = Button("Reports", "Open Preferences", reload_grade_schemes_button.x() + reload_grade_schemes_button.width(), preset_dropdown.y(), False)
 open_reports_from_preferences_button = Button("Preferences", "Open Reports", screens['Preferences'].width() - 50, 0, False)
 open_reports_from_preferences_button.move(screens['Preferences'].width() - open_reports_from_preferences_button.width(), 0)
 
-open_grades_from_reports_button = Button("Reports", "Open Grades", reload_grade_schemes_button.x() + reload_grade_schemes_button.width(), preset_dropdown.y(), False)
+
 open_reports_from_grades_button = Button("Grades", "Open Reports", screens['Grades'].width() - 50, 0, False)
 open_reports_from_grades_button.move(screens['Grades'].width() - open_reports_from_preferences_button.width(), 0)
-
 
 open_preferences_from_reports_button.clicked.connect(lambda: switch_screen("Preferences"))
 open_reports_from_preferences_button.clicked.connect(lambda: switch_screen("Reports"))
@@ -145,7 +167,7 @@ open_grades_from_reports_button.clicked.connect(lambda: switch_screen("Grades"))
 open_reports_from_grades_button.clicked.connect(lambda: switch_screen("Reports"))
 
 
-reload_button = Button("Reports", "Reload", open_preferences_from_reports_button.x(), open_preferences_from_reports_button.y() + open_preferences_from_reports_button.height(), False)
+reload_button = Button("Reports", "Reload", open_grades_from_reports_button.x(), open_grades_from_reports_button.y() + open_grades_from_reports_button.height(), False)
 
 background_color_button = Button("Preferences", "BG Color", screens['Preferences'].width() - 150, open_reports_from_preferences_button.y() + open_reports_from_preferences_button.height(), False)
 text_color_button = Button("Preferences", "Text Color", screens['Preferences'].width() - 150, background_color_button.y() + background_color_button.height(), False)
@@ -187,14 +209,26 @@ class Student:
         global report_column
         global grades_column
         global grades_column_index
+        global sheet
 
         if not report:
             report = self.report
-        write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.offset)))
+        if prefs.get_pref('is_web'):
+            write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.offset)))
+        else:
+            sheet[self.classroom][report_column + str(self.offset)] = report
+            sheet.save(prefs.get_pref('report_sheet'))
+
 
     def write_grades(self):
-        write_sheet(report_sheet, [[g['grade'] for g in self.grades.values()]], "{}!{}:{}".format(self.classroom, grades_column + str(self.offset), index_to_column(grades_column_index + len(self.grades)) + str(self.offset)))
-
+        global sheet
+        if prefs.get_pref('is_web'):
+            write_sheet(report_sheet, [[g['grade'] for g in self.grades.values()]], "{}!{}:{}".format(self.classroom, grades_column + str(self.offset), index_to_column(grades_column_index + len(self.grades)) + str(self.offset)))
+        else:
+            grades = [g['grade'] for g in self.grades.values()]
+            for i in range(len(self.grades)):
+                sheet[self.classroom][index_to_column(grades_column_index+i)+str(self.offset)] = grades[i] if not None else ""
+            sheet.save(prefs.get_pref('report_sheet'))
     def get_pronouns(self):
         if self.gender:
             return Student.pronouns[self.gender]
@@ -375,17 +409,25 @@ class SentenceGroup:
         global class_dropdown
         global report_sheet
         global sentence_tabs
+        global all_tab_pairs
 
         col = index_to_column(self.index)
         if self.manual_delete:
-            tab_id = [tab[1] for tab in sentence_tabs if tab[0] == "Sentences " + class_dropdown.currentText().split("-")[0]]
-            write_sheet(report_sheet, "", mode="COLUMNS", remove=[self.index, self.index+1], tab_id=tab_id[0])
+            if prefs.get_pref('is_web'):
+                tab_id = [tab[1] for tab in all_tab_pairs if tab[0] == "Sentences " + class_dropdown.currentText().split("-")[0]]
+                write_sheet(report_sheet, "", mode="COLUMNS", remove=[self.index, self.index+1], tab_id=tab_id[0])
+            else:
+                pass
         else:
             buffer_list = ["", "", "", "", ""] #account for the fact that in removing, there are floating cells not part of options; have a 5-long buffer to manage that
-            write_sheet(report_sheet, [self.options+buffer_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0], col, col + str(len(self.options) + 1 + len(buffer_list))), "COLUMNS")
+            if prefs.get_pref('is_web'):
+                write_sheet(report_sheet, [self.options+buffer_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0], col, col + str(len(self.options) + 1 + len(buffer_list))), "COLUMNS")
+            else:
+                pass
 
 def fill_class_data(class_index=None):
     global report_sheet
+    global sheet
     global class_students
     global class_dropdown
     global class_tabs
@@ -396,18 +438,22 @@ def fill_class_data(class_index=None):
     student_dropdown.clear()
     class_students = []
     if class_index:
-        class_name = class_tabs[class_index][0]
+        class_name = class_tabs[class_index]
     elif class_dropdown.count() > 0:
         class_name = class_dropdown.currentText()
     else:
         class_name = None
 
     if class_name:
-        current_class = get_sheet(report_sheet, "{}!A1:Z1000".format(class_name)).get('values')
+        if prefs.get_pref('use_web'):
+            current_class = get_sheet(report_sheet, "{}!A1:Z1000".format(class_name)).get('values')
+        else:
+            current_class = [row for row in sheet[class_name].values]
+
         ro = row_offset #Row offset
 
         #Drop the headers, iterate over all student rows
-        if current_class is not None:
+        if current_class:
             assignment_headers = None
             scheme_headers = None
             grade_list = None
@@ -442,9 +488,6 @@ def fill_class_data(class_index=None):
         update_report()
         setup_grades_table()
 
-
-
-
 def update_tab_order():
     global sentences
     global class_dropdown
@@ -470,14 +513,18 @@ def update_sentences():
     global sentences
     global sentence_tabs
     global class_dropdown
-
+    global sheet
     if len(sentence_tabs) > 0:
         for tab in sentence_tabs:
-            if tab[0].endswith(class_dropdown.currentText().split("-")[0]):
+            if tab.endswith(class_dropdown.currentText().split("-")[0]):
                 for elem in sentences: elem.delete()
                 sentences = []
                 print("Called update sentences...")
-                current_sentences = get_sheet(report_sheet, "{}!A1:Z1000".format("Sentences " + str(class_dropdown.currentText().split("-")[0])), "COLUMNS").get('values')
+                if prefs.get_pref("use_web"):
+                    current_sentences = get_sheet(report_sheet, "{}!A1:Z1000".format("Sentences " + str(class_dropdown.currentText().split("-")[0])), "COLUMNS").get('values')
+                else:
+                    st = sheet["Sentences " + str(class_dropdown.currentText().split("-")[0])]
+                    current_sentences = [col for col in st.iter_cols(values_only=True)]
                 count = 0
                 ro = 0
                 if current_sentences is not None:
@@ -601,7 +648,6 @@ def generate_report_from_preset():
     report_area.repaint()
 
 
-grades_label = Label('Grades', "Student has no grades! Try adding something!", 300, 50, visible=False)
 class GradeTable(QTableWidget):
     def __init__(self, screen, header=["Assignment", "Grade", "Scheme"], data=None, x=None, y=None, w=None, h=None):
         if screen in screens:
@@ -656,25 +702,18 @@ class GradeTable(QTableWidget):
         self.resizeColumnsToContents()
 
     def updateTable(self, data=None):
-        global grades_label
-
         self.setRowCount(0)
         self.data = data
         self.setRowCount(len(data) if data is not None else 0)
         self.setColumnCount(len(data[0]) if data is not None and len(data) > 0 else 0)
         self.setHorizontalHeaderLabels(self.header)
         if self.data:
-            self.show()
-            grades_label.hide()
             for row in range(0, len(data)):
                 for col in range(0, len(data[row])):
                     item = QTableWidgetItem(data[row][col])
                     item.setForeground(QBrush(QColor(255, 0, 0))) #there is no way to set table info via CSS
                     if self.horizontalHeaderItem(col).text() != "Grade": item.setFlags(Qt.ItemIsEnabled)
                     self.setItem(row, col, item)
-        else:
-            self.hide()
-            grades_label.show()
         self.setHorizontalHeaderLabels(self.header)
         self.resizeRowsToContents()
         self.resizeColumnsToContents()
