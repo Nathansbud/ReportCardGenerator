@@ -406,6 +406,7 @@ class SentenceGroup:
             self.addOption()
 
     def write_sentences(self):
+        global sheet
         global class_dropdown
         global report_sheet
         global sentence_tabs
@@ -417,13 +418,17 @@ class SentenceGroup:
                 tab_id = [tab[1] for tab in all_tab_pairs if tab[0] == "Sentences " + class_dropdown.currentText().split("-")[0]]
                 write_sheet(report_sheet, "", mode="COLUMNS", remove=[self.index, self.index+1], tab_id=tab_id[0])
             else:
-                pass
+                sheet["Sentences " + class_dropdown.currentText().split("-")[0]].delete_cols(self.index+1)
+                sheet.save(prefs.get_pref('report_sheet'))
         else:
             buffer_list = ["", "", "", "", ""] #account for the fact that in removing, there are floating cells not part of options; have a 5-long buffer to manage that
             if prefs.get_pref('is_web'):
                 write_sheet(report_sheet, [self.options+buffer_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0], col, col + str(len(self.options) + 1 + len(buffer_list))), "COLUMNS")
             else:
-                pass
+                write_list = self.options + buffer_list
+                for i in range(0, len(write_list)):
+                    sheet["Sentences " + class_dropdown.currentText().split("-")[0]][col+str(i+2)] = write_list[i]
+                    sheet.save(prefs.get_pref('report_sheet'))
 
 def fill_class_data(class_index=None):
     global report_sheet
@@ -445,7 +450,7 @@ def fill_class_data(class_index=None):
         class_name = None
 
     if class_name:
-        if prefs.get_pref('use_web'):
+        if prefs.get_pref('is_web'):
             current_class = get_sheet(report_sheet, "{}!A1:Z1000".format(class_name)).get('values')
         else:
             current_class = [row for row in sheet[class_name].values]
@@ -520,11 +525,11 @@ def update_sentences():
                 for elem in sentences: elem.delete()
                 sentences = []
                 print("Called update sentences...")
-                if prefs.get_pref("use_web"):
+                if prefs.get_pref("is_web"):
                     current_sentences = get_sheet(report_sheet, "{}!A1:Z1000".format("Sentences " + str(class_dropdown.currentText().split("-")[0])), "COLUMNS").get('values')
                 else:
                     st = sheet["Sentences " + str(class_dropdown.currentText().split("-")[0])]
-                    current_sentences = [col for col in st.iter_cols(values_only=True)]
+                    current_sentences = [list(filter(None, col)) for col in st.iter_cols(values_only=True)]
                 count = 0
                 ro = 0
                 if current_sentences is not None:
