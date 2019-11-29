@@ -7,13 +7,12 @@ from math import floor
 import openpyxl.utils.exceptions
 import googleapiclient.errors
 
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QDialog, QTableWidget, QTableWidgetItem, QSizePolicy, QWidget, QHeaderView
-from PyQt5.QtGui import QBrush, QColor
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView
+from PyQt5.QtGui import QBrush, QColor, QStandardItem
 from PyQt5.QtCore import Qt
 
-
-from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorSelector, Checkbox#, #Screen
-from cuter import app, screens, switch_screen  # Pared down versions of ^, to reduce cluttered code
+from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorSelector, Checkbox
+from cuter import app, screens, switch_screen
 from sheets import get_sheet, write_sheet
 from preferences import prefs
 from grades import grade_schemes, GradeSet, load_grades
@@ -22,9 +21,7 @@ from grades import grade_schemes, GradeSet, load_grades
 Todo:
     - Async spreadsheet loading (or a modal dialog)
     - GUI so that user doesn't have to deal with weird text macros
-    - Excel API in addition to google sheets; offline and online versions
-    - Dropdown menus should display formatted text
-    - Fix queue order failing in submitted threads (i.e. if 7 6 is recieved after 7 7, 7 6 will save)
+    - Format student dropdown for unfinished reports
 '''
 
 report_sheet = prefs.get_pref("report_sheet")
@@ -136,6 +133,7 @@ class_dropdown = Dropdown("Reports", class_label.x() + class_label.width(), clas
 
 student_label = Label("Reports", "Name: ", 50, 75)
 student_dropdown = Dropdown("Reports", student_label.x() + student_label.width(), student_label.y(), [])
+student_dropdown.setObjectName("StudentDropdown")
 
 preset_button = Button("Reports", "Generate Preset", student_dropdown.x() + student_dropdown.width(), student_dropdown.y(), False)
 preset_dropdown = Dropdown("Reports", preset_button.x() + preset_button.width(), preset_button.y(), [], False)
@@ -146,9 +144,7 @@ generate_button = Button("Reports", "Generate", screens['Reports'].width()/2 - 2
 report_area = Textarea("Reports", "", 0, 450, screens['Reports'].width(), 250)
 submit_button = Button("Reports", "Submit", screens['Reports'].width()/2 - 20, 700)
 
-
 color_selector = ColorSelector("Reports")
-
 
 open_grades_from_reports_button = Button("Reports", "Open Grades", screens['Reports'].width(), 0, False)
 open_grades_from_reports_button.move(screens['Reports'].width() - open_grades_from_reports_button.width(), 0)
@@ -203,6 +199,8 @@ class Student:
         self.gender = gender
         self.classroom = classroom
         self.offset = offset
+        if self.report: self.submitted = True
+        else: self.submitted = False
 
     def submit_report(self, report=None):
         global report_sheet
@@ -210,15 +208,19 @@ class Student:
         global grades_column
         global grades_column_index
         global sheet
+        global student_dropdown
+        global class_students
 
-        if not report:
-            report = self.report
+        self.report = report.strip()
+
         if prefs.get_pref('is_web'):
             write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.offset)))
         else:
             sheet[self.classroom][report_column + str(self.offset)] = report
             sheet.save(prefs.get_pref('report_sheet'))
 
+        if self.report: self.submitted = True
+        else: self.submitted = False
 
     def write_grades(self):
         global sheet
@@ -422,13 +424,28 @@ class SentenceGroup:
                 sheet.save(prefs.get_pref('report_sheet'))
         else:
             buffer_list = ["", "", "", "", ""] #account for the fact that in removing, there are floating cells not part of options; have a 5-long buffer to manage that
+            write_list = self.options + buffer_list
             if prefs.get_pref('is_web'):
-                write_sheet(report_sheet, [self.options+buffer_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0], col, col + str(len(self.options) + 1 + len(buffer_list))), "COLUMNS")
+                write_sheet(report_sheet, [write_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0], col, col + str(len(write_list) + 1)), "COLUMNS")
             else:
-                write_list = self.options + buffer_list
                 for i in range(0, len(write_list)):
                     sheet["Sentences " + class_dropdown.currentText().split("-")[0]][col+str(i+2)] = write_list[i]
                     sheet.save(prefs.get_pref('report_sheet'))
+
+def reformat_student_dropdown():
+    global student_dropdown
+    global class_students
+
+    student_dropdown.clear()
+    model = student_dropdown.model()
+    for i in range(len(class_students)):
+        item = QStandardItem(class_students[i].first_name + " " + class_students[i].last_name)
+        if not class_students[i].submitted and not class_students[i].report:
+            item.setBackground(QColor(255, 0, 0))
+        elif not class_students[i].submitted:
+            item.setBackground(QColor(255, 255, 0))
+        model.appendRow(item)
+
 
 def fill_class_data(class_index=None):
     global report_sheet
@@ -474,19 +491,24 @@ def fill_class_data(class_index=None):
                         else: grade_list[i] = student[4:][i]
                 class_students.append(
                     Student(
-                        student[0], #First Name
-                        student[1] if len(student) >= 2 else "", #Last Name
-                        student[2] if len(student) >= 3 else "", #Gender
-                        student[3] if len(student) >= 4 else "", #Report
-                        #scheme, assignment, and student grades SHOULD all be the same length, so zip to iterate over all 3 to make grades dict
-                        {assignment:{'grade':grade, 'scheme':scheme} for assignment, grade, scheme in zip(assignment_headers, grade_list, scheme_headers)} if assignment_headers else {},
+                        student[0],  # First Name
+                        student[1] if len(student) >= 2 else "",  # Last Name
+                        student[2] if len(student) >= 3 else "",  # Gender
+                        student[3] if len(student) >= 4 else "",  # Report
+                        # scheme, assignment, and student grades SHOULD all be the same length, so zip to iterate over all 3 to make grades dict
+                        {assignment: {'grade': grade, 'scheme': scheme} for assignment, grade, scheme in
+                         zip(assignment_headers, grade_list, scheme_headers)} if assignment_headers else {},
                         class_name,
                         ro
                     )
                 )
                 ro+=1
 
+        if prefs.get_pref('format_unfinished'):
+            reformat_student_dropdown()
+        else:
             student_dropdown.addItems([student.first_name + " " + student.last_name for student in class_students])
+
         if class_dropdown.history[-1].split("-")[0] != class_name.split("-")[0]:
             update_sentences()
         class_dropdown.history.append(class_name)
@@ -625,6 +647,11 @@ def send_report():
         class_students[student_dropdown.currentIndex()].report = report_area.toPlainText()
         submit_thread = Thread(target=class_students[student_dropdown.currentIndex()].submit_report)
         submit_thread.start()
+
+    if prefs.get_pref('reformat_unfinished'):
+        current_index = student_dropdown.currentIndex()
+        reformat_student_dropdown()
+        student_dropdown.setCurrentIndex(current_index)
 
 def generate_report():
     global sentences
@@ -774,11 +801,17 @@ def update_student(index=None):
         sentence.dropdown.clear()
         sentence.dropdown.addItems([replace_generics(formatted) for formatted in sentence.options])
 
+def local_save_report():
+    global class_students
+    global student_dropdown
 
+    if class_students:
+        class_students[student_dropdown.currentIndex()].report = report_area.toPlainText()
 
 load_grades(grade_scheme_tabs)
 fill_class_data()
 
+report_area.textChanged.connect(local_save_report)
 class_dropdown.currentIndexChanged.connect(fill_class_data)
 student_dropdown.currentIndexChanged.connect(update_student)
 submit_button.clicked.connect(send_report)
@@ -789,6 +822,7 @@ reload_button.clicked.connect(setup)
 refresh_button.clicked.connect(update_sentences)
 reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 add_sentence_button.clicked.connect(add_sentence)
+
 
 
 

@@ -5,6 +5,11 @@ import platform
 class Preferences:
     pref_file = os.path.join(os.path.dirname(__file__), "prefs", "config.json")
     defaults = os.path.join(os.path.dirname(__file__), "prefs", "defaults.json")
+    copy_list = [
+            'report_sheet',
+            'format_unfinished',
+            'unfinished_color'
+    ]
     os = platform.system()
     if os == "Darwin":
         from Foundation import NSUserDefaults
@@ -21,7 +26,8 @@ class Preferences:
             with open(Preferences.defaults, 'r+') as df, open(Preferences.pref_file, 'w+') as pf:
                 load_defaults = json.load(df)
                 build_prefs = get_default_theme(load_defaults)
-                build_prefs['report_sheet'] = ""
+                for pref in Preferences.copy_list:
+                    build_prefs[pref] = load_defaults[pref]
                 json.dump(build_prefs, pf)
         with open(Preferences.pref_file, "r+") as pf:
             self.prefs = json.load(pf)
