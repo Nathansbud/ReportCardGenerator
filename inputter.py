@@ -40,8 +40,30 @@ def get_class_links():
     global browser
 
     gradebook_class = "class-link"
+    report_ending = "report-cards"
+    links = []
+    for elem in browser.find_elements_by_class_name(gradebook_class):
+        link = elem.get_attribute('href')
+        link_split = link.split("/")
+        link_split[-1] = report_ending #Replace "gradebook" with "report-cards", where students are
+        links.append("/".join(link_split))
+    return links
+
+def open_students():
+    global browser
+
+    student_class = "students"
+    student_list = browser.find_elements_by_class_name(student_class)[0] #Get sidebar of student elems
+    student_elems = student_list.find_elements_by_tag_name('li') #Get all students
+    student_select = "Paranjaay Mahtani"
+    for student in student_elems:
+        if student.get_attribute("textContent") == student_select:
+            student.click()
 
 if __name__ == '__main__':
     veracross_login()
-    get_class_links()
-    pass
+    gradebooks = get_class_links()
+    browser.get(gradebooks[0])
+    open_students()
+
+
