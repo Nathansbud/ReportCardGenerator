@@ -104,24 +104,19 @@ class GradeSet:
 
     def compare(self, a, b, operator):
         # Map all accepted operators to lambda functions, as inputs will always be numerical (either being numeric values of indices of values in a set)
-        if not 'invert' in self.scheme.scale.name.lower():
-            operator_set = {
-                ">=": (lambda a1, a2: a1 >= a2),
-                ">": (lambda a1, a2: a1 > a2),
-                "<": (lambda a1, a2: a1 < a2),
-                "<=": (lambda a1, a2: a1 <= a2),
-                "==": (lambda a1, a2: a1 == a2),
-                "!=":(lambda a1, a2: a1 != a2)
-            }
-        else:
-            # Switch operator lambdas for < and > families, as flipped list means flipped compares of indices
-            operator_set = {
-                "<=": (lambda a1, a2: a1 >= a2),
-                "<": (lambda a1, a2: a1 > a2),
-                ">": (lambda a1, a2: a1 < a2),
-                ">=": (lambda a1, a2: a1 <= a2),
-                "==": (lambda a1, a2: a1 == a2)
-            }
+        # Invert comparison if scheme is backwards, rather than defining 2 operator set maps
+
+        if not 'invert' in self.scheme.scale.name.lower(): flip = True
+        else: flip = False
+        operator_set = {
+            ">=": (lambda a1, a2: a1 >= a2 if not flip else a1 <= a2),
+            ">": (lambda a1, a2: a1 > a2 if not flip else a1 < a2),
+            "<": (lambda a1, a2: a1 < a2 if not flip else a1 > a2),
+            "<=": (lambda a1, a2: a1 <= a2 if not flip else a1 >= a2),
+            "==": (lambda a1, a2: a1 == a2),
+            "!=":(lambda a1, a2: a1 != a2)
+        }
+
 
         if self.isnumeric() and (isinstance(a, str) or isinstance(b, str)):
             if self.scheme.gtype == GradeType.INTEGER:
@@ -180,7 +175,7 @@ def load_grades(grade_tabs=None):
     grade_schemes = deepcopy(default_schemes)
     if grade_tabs:
         for tab in grade_tabs:
-            grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format(tab[0]), mode='COLUMNS').get('values')
+            grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format(tab), mode='COLUMNS').get('values')
             for s in grade_rules:
                 if s[0] != '':
                     grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
