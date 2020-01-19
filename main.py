@@ -202,7 +202,7 @@ class Student:
         if self.report: self.submitted = True
         else: self.submitted = False
 
-    def submit_report(self, report=None):
+    def submit_report(self):
         global report_sheet
         global report_column
         global grades_column
@@ -211,7 +211,10 @@ class Student:
         global student_dropdown
         global class_students
 
-        self.report = report.strip()
+        if not self.report: report = ""
+        else:
+            self.report = self.report.strip()
+            report = self.report
 
         if prefs.get_pref('is_web'):
             write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.offset)))

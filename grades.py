@@ -39,8 +39,9 @@ default_schemes = {
     'ALPHABETIC_WHOLE':GradeScheme(name='ALPHABETIC_WHOLE', lower_bound='F', upper_bound='A', pass_bound='C', scale=Scale.LINEAR_INVERT, gtype=GradeType.ALPHABETIC),
     'ALPHABETIC_HALF':GradeScheme(name='ALPHABETIC_HALF', scale=Scale.LINEAR, pass_bound='D', gtype=GradeType.SET,
                                   gset=['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']),
-    'ATL':GradeScheme(name='ATL', scale=Scale.LINEAR_INVERT, gtype=GradeType.SET, pass_bound='AP',
+    'MS':GradeScheme(name='MS', scale=Scale.LINEAR_INVERT, gtype=GradeType.SET, pass_bound='AP',
         gset=["EX", "ME", "AP", "DM"]),
+    'ATL': GradeScheme(name='ATL', scale=Scale.LINEAR_INVERT, gtype=GradeType.SET, pass_bound='AP', gset=["R", "S", "C"]),
     #Need to figure out binary scale
     # 'PASS':GradeScheme(name='PASS', scale=Scale.BINARY, gtype=GradeType.MAP, pass_bound='PASS', gset={"PASS":True, "FAIL":False}),
     # 'TURN_IN':GradeScheme(name='TURN_IN', scale=Scale.BINARY, gtype=GradeType.MAP, pass_bound='TI', gset={"TI":True, "NTI":False})
@@ -106,16 +107,37 @@ class GradeSet:
         # Map all accepted operators to lambda functions, as inputs will always be numerical (either being numeric values of indices of values in a set)
         # Invert comparison if scheme is backwards, rather than defining 2 operator set maps
 
-        if not 'invert' in self.scheme.scale.name.lower(): flip = True
-        else: flip = False
-        operator_set = {
-            ">=": (lambda a1, a2: a1 >= a2 if not flip else a1 <= a2),
-            ">": (lambda a1, a2: a1 > a2 if not flip else a1 < a2),
-            "<": (lambda a1, a2: a1 < a2 if not flip else a1 > a2),
-            "<=": (lambda a1, a2: a1 <= a2 if not flip else a1 >= a2),
-            "==": (lambda a1, a2: a1 == a2),
-            "!=":(lambda a1, a2: a1 != a2)
-        }
+        # if not 'invert' in self.scheme.scale.name.lower(): flip = True
+        # else: flip = False
+        # operator_set = {
+        #     ">=": (lambda a1, a2: a1 >= a2 if not flip else a1 <= a2),
+        #     ">": (lambda a1, a2: a1 > a2 if not flip else a1 < a2),
+        #     "<": (lambda a1, a2: a1 < a2 if not flip else a1 > a2),
+        #     "<=": (lambda a1, a2: a1 <= a2 if not flip else a1 >= a2),
+        #     "==": (lambda a1, a2: a1 == a2),
+        #     "!=":(lambda a1, a2: a1 != a2)
+        # }
+
+
+        if not 'invert' in self.scheme.scale.name.lower():
+            operator_set = {
+                ">=": (lambda a1, a2: a1 >= a2),
+                ">": (lambda a1, a2: a1 > a2),
+                "<": (lambda a1, a2: a1 < a2),
+                "<=": (lambda a1, a2: a1 <= a2),
+                "==": (lambda a1, a2: a1 == a2),
+                "!=":(lambda a1, a2: a1 != a2)
+            }
+        else:
+            # Switch operator lambdas for < and > families, as flipped list means flipped compares of indices
+            operator_set = {
+                "<=": (lambda a1, a2: a1 >= a2),
+                "<": (lambda a1, a2: a1 > a2),
+                ">": (lambda a1, a2: a1 < a2),
+                ">=": (lambda a1, a2: a1 <= a2),
+                "==": (lambda a1, a2: a1 == a2),
+                "!=": (lambda a1, a2: a1 != a2)
+            }
 
 
         if self.isnumeric() and (isinstance(a, str) or isinstance(b, str)):
