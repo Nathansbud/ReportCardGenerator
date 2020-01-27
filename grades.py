@@ -59,9 +59,7 @@ class GradeSet:
         elif isinstance(scheme, str) and scheme in grade_schemes: self.scheme = grade_schemes[scheme]
         else: self.scheme = None
 
-    def isnumeric(self):
-        return self.scheme.gtype == GradeType.INTEGER or self.scheme.gtype == GradeType.NUMBER
-
+    def isnumeric(self): return self.scheme.gtype == GradeType.INTEGER or self.scheme.gtype == GradeType.NUMBER
     def is_valid(self, grade):
         if self.scheme is None:
             return False
@@ -95,8 +93,7 @@ class GradeSet:
             return grade.lower() in self.scheme.gset
         return False
 
-    def validate(self, *args):
-        return not (False in [self.is_valid(a) for a in args])
+    def validate(self, *args): return not (False in [self.is_valid(a) for a in args])
 
     def is_passing(self, grade):
         if self.scheme is None: return True
@@ -104,42 +101,15 @@ class GradeSet:
         return self.compare(grade, self.scheme.pass_bound, ">=")
 
     def compare(self, a, b, operator):
-        # Map all accepted operators to lambda functions, as inputs will always be numerical (either being numeric values of indices of values in a set)
-        # Invert comparison if scheme is backwards, rather than defining 2 operator set maps
-
-        # if not 'invert' in self.scheme.scale.name.lower(): flip = True
-        # else: flip = False
-        # operator_set = {
-        #     ">=": (lambda a1, a2: a1 >= a2 if not flip else a1 <= a2),
-        #     ">": (lambda a1, a2: a1 > a2 if not flip else a1 < a2),
-        #     "<": (lambda a1, a2: a1 < a2 if not flip else a1 > a2),
-        #     "<=": (lambda a1, a2: a1 <= a2 if not flip else a1 >= a2),
-        #     "==": (lambda a1, a2: a1 == a2),
-        #     "!=":(lambda a1, a2: a1 != a2)
-        # }
-
-
-        if not 'invert' in self.scheme.scale.name.lower():
-            operator_set = {
-                ">=": (lambda a1, a2: a1 >= a2),
-                ">": (lambda a1, a2: a1 > a2),
-                "<": (lambda a1, a2: a1 < a2),
-                "<=": (lambda a1, a2: a1 <= a2),
-                "==": (lambda a1, a2: a1 == a2),
-                "!=":(lambda a1, a2: a1 != a2)
-            }
-        else:
-            # Switch operator lambdas for < and > families, as flipped list means flipped compares of indices
-            operator_set = {
-                "<=": (lambda a1, a2: a1 >= a2),
-                "<": (lambda a1, a2: a1 > a2),
-                ">": (lambda a1, a2: a1 < a2),
-                ">=": (lambda a1, a2: a1 <= a2),
-                "==": (lambda a1, a2: a1 == a2),
-                "!=": (lambda a1, a2: a1 != a2)
-            }
-
-
+        flip = not 'invert' in self.scheme.scale.name.lower()
+        operator_set = {
+            ">=": (lambda a1, a2: a1 >= a2 if flip else a1 <= a2),
+            ">": (lambda a1, a2: a1 > a2 if flip else a1 < a2),
+            "<": (lambda a1, a2: a1 < a2 if flip else a1 > a2),
+            "<=": (lambda a1, a2: a1 <= a2 if flip else a1 >= a2),
+            "==": (lambda a1, a2: a1 == a2),
+            "!=":(lambda a1, a2: a1 != a2)
+        }
         if self.isnumeric() and (isinstance(a, str) or isinstance(b, str)):
             if self.scheme.gtype == GradeType.INTEGER:
                 if isinstance(a, str) and str.isdigit(a):
@@ -186,10 +156,6 @@ class GradeSet:
         # split but keep tokens by using capture group on operators joined with or i.e. (>=|<=|>|<|==) which keeps matched ranges
         return [elem.strip().lower() for elem in re.split(f"({'|'.join(GradeSet.operators)})", tstr)]
 
-
-def mean(l):
-    return sum(l) / len(l)
-
 def load_grades(grade_tabs=None):
     global grade_schemes
     global default_schemes
@@ -201,3 +167,6 @@ def load_grades(grade_tabs=None):
             for s in grade_rules:
                 if s[0] != '':
                     grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
+
+
+

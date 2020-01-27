@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog, QCheckBox, QInputDialog, QStackedWidget
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog, QCheckBox
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont
 
@@ -73,12 +73,6 @@ def switch_screen(to):
                 else:
                     screens[screen].shown = True
                     screens[screen].show()
-
-
-
-# screen_handler = QStackedWidget()
-# for scr in screens.values(): screen_handler.addWidget(scr)
-# screen_handler.setCurrentIndex(0)
 
 class Button(QPushButton):
     def __init__(self, screen, text, x, y, focusOnTab=True):

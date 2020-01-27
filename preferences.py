@@ -31,7 +31,6 @@ class Preferences:
                 json.dump(build_prefs, pf)
         with open(Preferences.pref_file, "r+") as pf:
             self.prefs = json.load(pf)
-            #should add a "has changed theme" here but w/e
         self.pref_file = Preferences.pref_file
 
     def has_pref(self, key):

@@ -429,7 +429,8 @@ class SentenceGroup:
             buffer_list = ["", "", "", "", ""] #account for the fact that in removing, there are floating cells not part of options; have a 5-long buffer to manage that
             write_list = self.options + buffer_list
             if prefs.get_pref('is_web'):
-                write_sheet(report_sheet, [write_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0], col, col + str(len(write_list) + 1)), "COLUMNS")
+                write_sheet(report_sheet, [write_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0],
+                                                                                     col, col + str(len(write_list) + 1)), "COLUMNS")
             else:
                 for i in range(0, len(write_list)):
                     sheet["Sentences " + class_dropdown.currentText().split("-")[0]][col+str(i+2)] = write_list[i]
@@ -538,6 +539,7 @@ def update_tab_order():
         screens['Reports'].setTabOrder(student_dropdown, generate_button)
     screens['Reports'].setTabOrder(generate_button, report_area)
     screens['Reports'].setTabOrder(report_area, submit_button)
+
 
 def update_sentences():
     global sentences
@@ -684,7 +686,9 @@ def generate_report_from_preset():
 
 
 class GradeTable(QTableWidget):
-    def __init__(self, screen, header=["Assignment", "Grade", "Scheme"], data=None, x=None, y=None, w=None, h=None):
+    def __init__(self, screen, header=None, data=None, x=None, y=None, w=None, h=None):
+        if header is None:
+            header = ["Assignment", "Grade", "Scheme"]
         if screen in screens:
             self.screen = screen
             super(GradeTable, self).__init__(len(data) if data else 0, len(data[0]) if data else 0, screens[screen])
