@@ -1,21 +1,19 @@
-import re
 import os
-
-from threading import Thread
+import re
 from math import floor
+from threading import Thread
 
-import openpyxl.utils.exceptions
 import googleapiclient.errors
-
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView
-from PyQt5.QtGui import QBrush, QColor, QStandardItem
+import openpyxl.utils.exceptions
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QBrush, QColor, QStandardItem
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView
 
-from cuter import Application, Window, Button, Label, Dropdown, Textarea, ColorSelector, Checkbox
+from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox
 from cuter import app, screens, switch_screen
-from sheets import get_sheet, write_sheet
+from grades import GradeSet, load_grades
 from preferences import prefs
-from grades import grade_schemes, GradeSet, load_grades
+from sheets import get_sheet, write_sheet
 
 '''
 Todo:
@@ -25,7 +23,6 @@ Todo:
 '''
 
 report_sheet = prefs.get_pref("report_sheet")
-
 def setup_sheet(report=None):
     global report_sheet
 
@@ -48,8 +45,7 @@ def setup_sheet(report=None):
 
             report = [part for part in report.split('/') if not part in check_is and not part.startswith(*check_starts)]
             if len(report) != 1:
-                print("Something went wrong with your link!")
-                print(report)
+                ask_for = "Something went wrong getting your reports, couldn't isolate the sheet ID! Input report link/file path:"
             else:
                 try:
                     sheet_data = get_sheet(report[0])
@@ -92,23 +88,18 @@ def setup():
     global class_students
     global preset_list
     global grade_rules
-    global sentences
     global first_run
-    global class_dropdown
-    global student_dropdown
 
     sheet = setup_sheet(report_sheet if len(report_sheet) > 0 else None)
     if prefs.get_pref('is_web'):
         all_tabs_pairs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
         all_tabs = [name[0] for name in all_tabs_pairs]
-        grade_scheme_tabs = [tab for tab in all_tabs if tab.startswith("Grade Scheme") or tab.startswith("Grade Rule")]
-        class_tabs = [tab for tab in all_tabs if len(tab.split("-"))==2]
-        sentence_tabs = [tab for tab in all_tabs if tab.startswith("Sentences")]
     else:
         all_tabs = sheet.sheetnames
-        grade_scheme_tabs = [tab for tab in all_tabs if tab.startswith("Grade Scheme")]
-        class_tabs = [tab for tab in all_tabs if len(tab.split("-"))==2]
-        sentence_tabs = [tab for tab in all_tabs if tab.startswith("Sentences")]
+
+    grade_scheme_tabs = [tab for tab in all_tabs if tab.startswith("Grade Scheme") or tab.startswith("Grade Rule")]
+    class_tabs = [tab for tab in all_tabs if len(tab.split("-")) == 2]
+    sentence_tabs = [tab for tab in all_tabs if tab.startswith("Sentences")]
 
     class_students = []
     preset_list = {}
@@ -123,7 +114,6 @@ def setup():
 
         class_dropdown.currentIndexChanged.connect(fill_class_data)
         student_dropdown.currentIndexChanged.connect(update_student)
-        # this disconnect/reconnect seems like poor form; it fixes the crash but maybe look for a more elegant method
     first_run = False
 
 setup()
@@ -176,13 +166,10 @@ label_color_button.clicked.connect(lambda: color_selector.updateColor("Label Col
 refresh_button = Button("Reports", "Refresh Sentences", 0, 0, False)
 add_sentence_button = Button("Reports", "Add Sentence", 0, refresh_button.y() + refresh_button.height(), False)
 
-def index_to_column(index):
-    col = ""
-    ind = index
-    for i in range(0, floor(index/26 + 1)):
-        col += str(chr(ind % 26 + 65))
-        ind -= 26
-    return col
+def index_to_column(idx):
+    major = chr(65 + floor(idx / 26 - 1)) if idx > 25 else ""
+    minor = chr(65 + idx % 26)
+    return str(major + minor)
 
 class Student:
     pronouns = {
@@ -244,7 +231,6 @@ class Student:
 def replace_generics(fmt):
     global student_dropdown
     global class_students
-    global pronouns
     if len(class_students) > 0:
         fmt = make_lowercase_generics(fmt)
         current_student = class_students[student_dropdown.currentIndex()]
@@ -541,6 +527,7 @@ def update_tab_order():
     screens['Reports'].setTabOrder(report_area, submit_button)
 
 
+
 def update_sentences():
     global sentences
     global sentence_tabs
@@ -832,7 +819,6 @@ add_sentence_button.clicked.connect(add_sentence)
 
 if __name__ == "__main__":
     app.exec()
-
 
 
 

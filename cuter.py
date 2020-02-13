@@ -97,6 +97,8 @@ class Button(QPushButton):
         if event.key() == Qt.Key_Escape:
             exit()
 
+
+
 class Label(QLabel):
     def __init__(self, screen, text, x, y, visible=True):
         if screen in screens:

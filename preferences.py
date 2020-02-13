@@ -6,9 +6,9 @@ class Preferences:
     pref_file = os.path.join(os.path.dirname(__file__), "prefs", "config.json")
     defaults = os.path.join(os.path.dirname(__file__), "prefs", "defaults.json")
     copy_list = [
-            'report_sheet',
-            'format_unfinished',
-            'unfinished_color'
+        'report_sheet',
+        'format_unfinished',
+        'unfinished_color'
     ]
     os = platform.system()
     if os == "Darwin":
@@ -17,10 +17,7 @@ class Preferences:
 
     def __init__(self):
         def get_default_theme(d):
-            if Preferences.is_macos() and Preferences.theme == 'Dark':
-                return d['dark_theme']
-            else:
-                return d['light_theme']
+            return d['dark_theme'] if Preferences.is_macos() and Preferences.theme == 'Dark' else d['light_theme']
 
         if not os.path.isfile(Preferences.pref_file):
             with open(Preferences.defaults, 'r+') as df, open(Preferences.pref_file, 'w+') as pf:
