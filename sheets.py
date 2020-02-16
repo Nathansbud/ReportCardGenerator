@@ -40,12 +40,12 @@ def write_sheet(sheet, values, r='', mode="ROWS", remove=None, tab_id=None):
     sheets_token = make_token(scope=SCOPES, cred_name="sheets")
     service = build('sheets', 'v4', credentials=sheets_token)
     if remove is None:
-        result = service.spreadsheets().values().update(spreadsheetId=sheet, range=r, valueInputOption="RAW", body={
+        service.spreadsheets().values().update(spreadsheetId=sheet, range=r, valueInputOption="RAW", body={
             'values':values,
             'majorDimension':mode
         }).execute()
     else:
-        result = service.spreadsheets().batchUpdate(spreadsheetId=sheet, body=
+        service.spreadsheets().batchUpdate(spreadsheetId=sheet, body=
         {"requests": {
                 "deleteRange": {
                     "range": {
@@ -57,4 +57,5 @@ def write_sheet(sheet, values, r='', mode="ROWS", remove=None, tab_id=None):
                 }
             }
         }).execute()
+
 

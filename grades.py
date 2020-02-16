@@ -41,17 +41,14 @@ default_schemes = {
                                   gset=['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']),
     'MS':GradeScheme(name='MS', scale=Scale.LINEAR_INVERT, gtype=GradeType.SET, pass_bound='AP',
         gset=["EX", "ME", "AP", "DM"]),
-    'ATL': GradeScheme(name='ATL', scale=Scale.LINEAR_INVERT, gtype=GradeType.SET, pass_bound='AP', gset=["R", "S", "C"]),
-    #Need to figure out binary scale
-    # 'PASS':GradeScheme(name='PASS', scale=Scale.BINARY, gtype=GradeType.MAP, pass_bound='PASS', gset={"PASS":True, "FAIL":False}),
-    # 'TURN_IN':GradeScheme(name='TURN_IN', scale=Scale.BINARY, gtype=GradeType.MAP, pass_bound='TI', gset={"TI":True, "NTI":False})
+    'ATL': GradeScheme(name='ATL', scale=Scale.LINEAR, gtype=GradeType.SET, pass_bound='AP', gset=["R", "S", "C"]),
 }
 
 grade_schemes = deepcopy(default_schemes)
 
 class GradeSet:
     operators = [
-        ">=", "<=", ">", "<", "=="
+        ">=", "<=", ">", "<", "==", "!="
     ]
 
     def __init__(self, scheme):
@@ -134,8 +131,6 @@ class GradeSet:
             return operator_set[operator](a, b)  # Simply direct compare numeric items
         elif self.scheme.gtype == GradeType.SET:
             return operator_set[operator](self.scheme.gset.index(a), self.scheme.gset.index(b))  # Grab indices of a linear set to compare i.e. in set ['C', 'B', 'A'], index('A') > index('C')
-        # elif self.scheme.gtype == GradeType.MAP:
-            # return
         return False
 
     def evaluate(self, grades, rule):
@@ -146,14 +141,11 @@ class GradeSet:
             if arg1 in keys_lower: arg1 = keys_lower[arg1]['grade']
             if arg2 in keys_lower: arg2 = keys_lower[arg2]['grade']
             return self.compare(arg1, arg2, op)
-        # elif self.scheme == GradeType.MAP and len(grade_schemes) == 1:
-        #     keys_lower = {k.lower():v for k,v in grades.items()}
-        #     if rule_parts[0] in keys_lower: return bool(keys_lower[rule_parts[0]])
         return False
 
     @staticmethod
     def tokenize(tstr):
-        # split but keep tokens by using capture group on operators joined with or i.e. (>=|<=|>|<|==) which keeps matched ranges
+        # split but keep tokens by using capture group on operators joined with or i.e. (>=|<=|>|<|==|!=) which keeps matched ranges
         return [elem.strip().lower() for elem in re.split(f"({'|'.join(GradeSet.operators)})", tstr)]
 
 def load_grades(grade_tabs=None):

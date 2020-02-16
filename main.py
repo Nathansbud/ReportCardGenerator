@@ -20,6 +20,7 @@ Todo:
     - Async spreadsheet loading (or a modal dialog)
     - GUI so that user doesn't have to deal with weird text macros
     - Format student dropdown for unfinished reports
+    - Use Sheets API in order to CREATE spreadsheet
 '''
 
 report_sheet = prefs.get_pref("report_sheet")
@@ -211,7 +212,6 @@ class Student:
 
         if self.report: self.submitted = True
         else: self.submitted = False
-
     def write_grades(self):
         global sheet
         if prefs.get_pref('is_web'):
@@ -262,18 +262,13 @@ def replace_generics(fmt):
             fmt = fmt.replace("they is", "they are")
 
         punctuationIndices = []
-        capitalizationIndices = [0]
-
+        fmt = fmt.capitalize()
         for i in range(0, len(fmt)):
             if fmt[i] == "." or fmt[i] == "!" or fmt[i] == "?": punctuationIndices.append(i)
 
         for index in punctuationIndices:
             if index + 2 < len(fmt):
                 fmt = fmt[0:index + 2] + fmt[index + 2].upper() + fmt[index + 3:]
-
-        for index in capitalizationIndices:
-            fmt = fmt[0:index] + fmt[index].upper() + fmt[index+1:]
-
 
         return fmt.strip()
     else: return None
@@ -422,6 +417,7 @@ class SentenceGroup:
                     sheet["Sentences " + class_dropdown.currentText().split("-")[0]][col+str(i+2)] = write_list[i]
                     sheet.save(prefs.get_pref('report_sheet'))
 
+
 def reformat_student_dropdown():
     global student_dropdown
     global class_students
@@ -485,7 +481,6 @@ def fill_class_data(class_index=None):
                         student[1] if len(student) >= 2 else "",  # Last Name
                         student[2] if len(student) >= 3 else "",  # Gender
                         student[3] if len(student) >= 4 else "",  # Report
-                        # scheme, assignment, and student grades SHOULD all be the same length, so zip to iterate over all 3 to make grades dict
                         {assignment: {'grade': grade, 'scheme': scheme} for assignment, grade, scheme in
                          zip(assignment_headers, grade_list, scheme_headers)} if assignment_headers else {},
                         class_name,
@@ -526,11 +521,8 @@ def update_tab_order():
     screens['Reports'].setTabOrder(generate_button, report_area)
     screens['Reports'].setTabOrder(report_area, submit_button)
 
-
-
 def update_sentences():
     global sentences
-    global sentence_tabs
     global class_dropdown
     global sheet
     if len(sentence_tabs) > 0:
@@ -584,12 +576,10 @@ def populate_presets(sentence_set):
     global preset_dropdown
     global preset_list
     global grade_rules
-
     preset_dropdown.clear()
     presets_found = []
     preset_list = {}
     grade_rules = []
-
     count = 1
     if sentence_set is not None:
         for elem in sentence_set:
@@ -717,7 +707,6 @@ class GradeTable(QTableWidget):
                 assignment = self.item(row, col - 1)
                 if scheme is not None and not GradeSet(scheme.text()).is_valid(item.text()):
                     print(f'{item.text()} is invalid! Reverting to {self.oldText}')
-                    pass
                     item.setText(self.oldText)
                 elif scheme is not None:
                     current_student.grades[assignment.text()]['grade'] = item.text()
@@ -737,7 +726,7 @@ class GradeTable(QTableWidget):
             for row in range(0, len(data)):
                 for col in range(0, len(data[row])):
                     item = QTableWidgetItem(data[row][col])
-                    item.setForeground(QBrush(QColor(255, 0, 0))) #there is no way to set table info via CSS
+                    item.setForeground(QBrush(QColor(255, 0, 0))) #there is no way to set table info via QSS
                     if self.horizontalHeaderItem(col).text() != "Grade": item.setFlags(Qt.ItemIsEnabled)
                     self.setItem(row, col, item)
         self.setHorizontalHeaderLabels(self.header)
@@ -819,6 +808,5 @@ add_sentence_button.clicked.connect(add_sentence)
 
 if __name__ == "__main__":
     app.exec()
-
 
 
