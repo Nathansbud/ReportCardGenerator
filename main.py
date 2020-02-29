@@ -5,11 +5,10 @@ from threading import Thread
 
 import googleapiclient.errors
 import openpyxl.utils.exceptions
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QBrush, QColor, QStandardItem
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog
+from PyQt5.QtGui import QColor, QStandardItem
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog
 
-from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox
+from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table
 from cuter import app, screens, switch_screen
 from grades import GradeSet, load_grades
 from preferences import prefs
@@ -20,9 +19,8 @@ Todo:
     - Async spreadsheet loading (or a modal dialog)
     - GUI so that user doesn't have to deal with weird text macros
     - Format student dropdown for unfinished reports
-    - Use Sheets API in order to CREATE spreadsheet
-        - Use Sheets API file selector
-    - Cancel on initial input dialog should quit program
+    - Use Sheets/Excel to CREATE spreadsheet
+    - Use Sheets API file selector
 '''
 
 excel_extensions = ["xlsx", "xlsm", "xltx", "xltm", "xlw"]
@@ -597,81 +595,35 @@ def generate_report_from_preset():
             report_area.setText(report_area.toPlainText() + replace_generics(elem.text) + " ")
     report_area.repaint()
 
+grades_table = Table('Grades', header=["Assignment", "Grade", "Scheme"], locked=["Assignment", "Scheme"], x=0, y=0, w=700, h=screens['Reports'].height())
 
-class GradeTable(QTableWidget):
-    def __init__(self, screen, header=None, data=None, x=None, y=None, w=None, h=None):
-        if header is None:
-            header = ["Assignment", "Grade", "Scheme"]
-        if screen in screens:
-            self.screen = screen
-            super(GradeTable, self).__init__(len(data) if data else 0, len(data[0]) if data else 0, screens[screen])
-        else:
-            self.screen = None
-        self.header = header
-        self.setHorizontalHeaderLabels(self.header)
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.Fixed)
-        self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
-        self.data = data
-        self.itemChanged.connect(self.cellIsChanged)
-        self.cellClicked.connect(self.cellOpened)
-        self.oldText = None
-        self.oldCell = ()
-        self.setGeometry(x, y, w, h)
-        self.move(x, y)
-        self.show()
+def grade_cell_changed(item):
+    global class_students
+    global student_dropdown
 
+    if grades_table.oldCell != (item.row(), item.column()): grades_table.oldText = ""
+    if class_students is not None and student_dropdown.count() > 0:
+        current_student = class_students[student_dropdown.currentIndex()]
+        col = item.column()
+        row = item.row()
 
-    def cellOpened(self, row, column):
-        self.oldText = self.item(row, column).text()
-        self.oldCell = (row, column)
-        print(column, row, self.oldText)
+        print(f"Edited: ({col}, {row}) | Value: {item.text()}")
+        if grades_table.horizontalHeaderItem(col) is not None and grades_table.horizontalHeaderItem(col).text() == "Grade":
+            print(f'Old: {grades_table.oldText} | New: {item.text()}')
+            scheme = grades_table.item(row, col + 1)
+            assignment = grades_table.item(row, col - 1)
+            if scheme is not None and not GradeSet(scheme.text()).is_valid(item.text()):
+                print(f'{item.text()} is invalid! Reverting to {grades_table.oldText}')
+                item.setText(grades_table.oldText)
+            elif scheme is not None:
+                current_student.grades[assignment.text()]['grade'] = item.text()
+                grades_thread = Thread(target=current_student.write_grades)
+                grades_thread.start()
+            grades_table.oldText = item.text()
+    grades_table.resizeRowsToContents()
+    grades_table.resizeColumnsToContents()
 
-    def cellIsChanged(self, item):
-        global class_students
-        global student_dropdown
-
-        if self.oldCell != (item.row(), item.column()): self.oldText = ""
-        if class_students is not None and student_dropdown.count() > 0:
-            current_student = class_students[student_dropdown.currentIndex()]
-            col = item.column()
-            row = item.row()
-
-            print(f"Edited: ({col}, {row}) | Value: {item.text()}")
-            if self.horizontalHeaderItem(col) is not None and self.horizontalHeaderItem(col).text() == "Grade":
-                print(f'Old: {self.oldText} | New: {item.text()}')
-                scheme = self.item(row, col+1)
-                assignment = self.item(row, col - 1)
-                if scheme is not None and not GradeSet(scheme.text()).is_valid(item.text()):
-                    print(f'{item.text()} is invalid! Reverting to {self.oldText}')
-                    item.setText(self.oldText)
-                elif scheme is not None:
-                    current_student.grades[assignment.text()]['grade'] = item.text()
-                    grades_thread = Thread(target=current_student.write_grades)
-                    grades_thread.start()
-                self.oldText = item.text()
-        self.resizeRowsToContents()
-        self.resizeColumnsToContents()
-
-    def updateTable(self, data=None):
-        self.setRowCount(0)
-        self.data = data
-        self.setRowCount(len(data) if data is not None else 0)
-        self.setColumnCount(len(data[0]) if data is not None and len(data) > 0 else 0)
-        self.setHorizontalHeaderLabels(self.header)
-        if self.data:
-            for row in range(0, len(data)):
-                for col in range(0, len(data[row])):
-                    item = QTableWidgetItem(data[row][col])
-                    item.setForeground(QBrush(QColor(255, 0, 0))) #there is no way to set table info via QSS
-                    if self.horizontalHeaderItem(col).text() != "Grade": item.setFlags(Qt.ItemIsEnabled)
-                    self.setItem(row, col, item)
-        self.setHorizontalHeaderLabels(self.header)
-        self.resizeRowsToContents()
-        self.resizeColumnsToContents()
-        self.repaint()
-        app.changeStyle()
-
-grades_table = GradeTable('Grades', x=0, y=0, w=700, h=screens['Reports'].height())
+grades_table.itemChanged.connect(grade_cell_changed)
 
 def generate_report_from_grades():
     global class_students
@@ -761,6 +713,7 @@ def setup():
         student_dropdown.currentIndexChanged.disconnect()
     class_dropdown.clear()
     class_dropdown.addItems([tab for tab in class_tabs])
+    load_grades(grade_scheme_tabs)
     fill_class_data()
     class_dropdown.currentIndexChanged.connect(fill_class_data)
     student_dropdown.currentIndexChanged.connect(update_student)

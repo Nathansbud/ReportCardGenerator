@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QLineEdit, QComboBox, QTextEdit, QColorDialog, QCheckBox
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView
 from PyQt5.QtCore import Qt, QEvent
-from PyQt5.QtGui import QColor, QPalette, QFont
+from PyQt5.QtGui import QColor, QPalette, QFont, QBrush
 
 from sys import exit
 from preferences import prefs
@@ -60,6 +60,7 @@ screens = {
     "Preferences":Window("Preferences", 0, 0, 1000, 750, False),
     "Grades":Window("Grades", 0, 0, 1000, 750, False),
     "Setup":Window("Sheet Setup", 0, 0, 1000, 750, True),
+    "Builder":Window("Sheet Builder", 0, 0, 1000, 750, False)
 }
 
 def switch_screen(to):
@@ -139,6 +140,52 @@ class Dropdown(QComboBox):
         if event.key() == Qt.Key_Escape:
             exit()
 
+
+class Table(QTableWidget):
+    def __init__(self, screen, header=None, data=None, x=None, y=None, w=None, h=None, locked=None, changed=None):
+        if screen in screens:
+            self.screen = screen
+            super(Table, self).__init__(len(data) if data else 0, len(data[0]) if data else 0, screens[screen])
+        else:
+            self.screen = None
+        self.header = header
+        self.locked = locked
+        self.setHorizontalHeaderLabels(self.header)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.data = data
+        self.changed = changed
+        self.cellClicked.connect(self.cellOpened)
+        self.oldText = None
+        self.oldCell = ()
+        self.setGeometry(x, y, w, h)
+        self.move(x, y)
+        self.show()
+
+    def cellOpened(self, row, column):
+        self.oldText = self.item(row, column).text()
+        self.oldCell = (row, column)
+        print(column, row, self.oldText)
+
+    def updateTable(self, data=None):
+        self.setRowCount(0)
+        self.data = data
+        self.setRowCount(len(data) if data is not None else 0)
+        self.setColumnCount(len(data[0]) if data is not None and len(data) > 0 else 0)
+        self.setHorizontalHeaderLabels(self.header)
+        if self.data:
+            for row in range(0, len(data)):
+                for col in range(0, len(data[row])):
+                    item = QTableWidgetItem(data[row][col])
+                    item.setForeground(QBrush(QColor(255, 0, 0))) #there is no way to set table info via QSS
+
+                    if self.horizontalHeaderItem(col).text() in self.locked: item.setFlags(Qt.ItemIsEnabled)
+                    self.setItem(row, col, item)
+        self.setHorizontalHeaderLabels(self.header)
+        self.resizeRowsToContents()
+        self.resizeColumnsToContents()
+        self.repaint()
+        app.changeStyle()
 
 class Textarea(QTextEdit):
     def __init__(self, screen, content, x, y, w, h):
