@@ -10,7 +10,6 @@ class Scale(Enum):
     LINEAR_INVERT = auto()
     NONE = auto()
 
-
 class GradeType(Enum):
     INTEGER = auto()
     NUMBER = auto()

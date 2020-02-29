@@ -7,7 +7,7 @@ import googleapiclient.errors
 import openpyxl.utils.exceptions
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QBrush, QColor, QStandardItem
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QTableWidget, QTableWidgetItem, QHeaderView, QFileDialog
 
 from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox
 from cuter import app, screens, switch_screen
@@ -21,42 +21,20 @@ Todo:
     - GUI so that user doesn't have to deal with weird text macros
     - Format student dropdown for unfinished reports
     - Use Sheets API in order to CREATE spreadsheet
+        - Use Sheets API file selector
+    - Cancel on initial input dialog should quit program
 '''
 
+excel_extensions = ["xlsx", "xlsm", "xltx", "xltm", "xlw"]
 report_sheet = prefs.get_pref("report_sheet")
-def setup_sheet(report=None):
-    global report_sheet
 
-    ask_for = "Input link/path to spreadsheet:"
-    while True:
-        if not report:
-            report, ok = QInputDialog(screens["Reports"]).getText(screens["Reports"], "Report Sheet", ask_for, QLineEdit.Normal, "")
-
-        if os.path.isfile(report):
-            try:
-                workbook = openpyxl.load_workbook(report)
-                prefs.update_pref("is_web", False)
-                prefs.update_pref("report_sheet", report)
-                return workbook
-            except openpyxl.utils.exceptions.InvalidFileException:
-                ask_for = "Invalid Excel file! Input a correct link/file path:"
-        else:
-            check_is = ["d", "https:", "spreadsheets", "http:", "docs.google.com", '']
-            check_starts = ["edit#"]
-
-            report = [part for part in report.split('/') if not part in check_is and not part.startswith(*check_starts)]
-            if len(report) != 1:
-                ask_for = "Something went wrong getting your reports, couldn't isolate the sheet ID! Input report link/file path:"
-            else:
-                try:
-                    sheet_data = get_sheet(report[0])
-                    report_sheet = report[0]
-                    prefs.update_pref("report_sheet", report[0])
-                    prefs.update_pref("is_web", True)
-                    return sheet_data
-                except googleapiclient.errors.HttpError:
-                    ask_for = "Something went wrong getting your reports! Input report link/file path:"
-        report = None
+def file_select(name, extensions):
+    dialog = QFileDialog()
+    dialog.setFileMode(QFileDialog.AnyFile)
+    dialog.setNameFilter(f"{name} ({' '.join([f'*.{e}' for e in extensions])})")
+    if dialog.exec():
+        return dialog.selectedFiles()[0]
+    return False #False = Failed
 
 report_column = "D"
 report_column_index = 3
@@ -76,48 +54,6 @@ preset_list = {}
 sentences = []  # Should be populated with SentenceGroup elements
 grade_scheme_tabs = []
 grade_rules = []
-
-first_run = True
-
-def setup():
-    global sheet
-    global all_tab_pairs
-    global all_tabs
-    global class_tabs
-    global sentence_tabs
-    global grade_scheme_tabs
-    global class_students
-    global preset_list
-    global grade_rules
-    global first_run
-
-    sheet = setup_sheet(report_sheet if len(report_sheet) > 0 else None)
-    if prefs.get_pref('is_web'):
-        all_tabs_pairs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
-        all_tabs = [name[0] for name in all_tabs_pairs]
-    else:
-        all_tabs = sheet.sheetnames
-
-    grade_scheme_tabs = [tab for tab in all_tabs if tab.startswith("Grade Scheme") or tab.startswith("Grade Rule")]
-    class_tabs = [tab for tab in all_tabs if len(tab.split("-")) == 2]
-    sentence_tabs = [tab for tab in all_tabs if tab.startswith("Sentences")]
-
-    class_students = []
-    preset_list = {}
-    grade_rules = []
-    if not first_run:
-        class_dropdown.currentIndexChanged.disconnect()
-        student_dropdown.currentIndexChanged.disconnect()
-
-        load_grades()
-        fill_class_data()
-        update_sentences()
-
-        class_dropdown.currentIndexChanged.connect(fill_class_data)
-        student_dropdown.currentIndexChanged.connect(update_student)
-    first_run = False
-
-setup()
 
 class_label = Label("Reports", "Class: ", screens['Reports'].width() / 2.5, 15)
 class_dropdown = Dropdown("Reports", class_label.x() + class_label.width(), class_label.y(), [tab for tab in class_tabs])
@@ -166,6 +102,7 @@ label_color_button.clicked.connect(lambda: color_selector.updateColor("Label Col
 
 refresh_button = Button("Reports", "Refresh Sentences", 0, 0, False)
 add_sentence_button = Button("Reports", "Add Sentence", 0, refresh_button.y() + refresh_button.height(), False)
+
 
 def index_to_column(idx):
     major = chr(65 + floor(idx / 26 - 1)) if idx > 25 else ""
@@ -226,7 +163,6 @@ class Student:
             return Student.pronouns[self.gender]
         else:
             return Student.pronouns["T"]
-
 
 def replace_generics(fmt):
     global student_dropdown
@@ -791,22 +727,142 @@ def local_save_report():
     if class_students:
         class_students[student_dropdown.currentIndex()].report = report_area.toPlainText()
 
-load_grades(grade_scheme_tabs)
-fill_class_data()
+first_run = True
+def setup():
+    global sheet
+    global all_tab_pairs
+    global all_tabs
+    global class_tabs
+    global sentence_tabs
+    global grade_scheme_tabs
+    global class_students
+    global preset_list
+    global grade_rules
+    global first_run
+
+    if prefs.get_pref('is_web'):
+        all_tabs_pairs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
+        all_tabs = [name[0] for name in all_tabs_pairs]
+    else:
+        all_tabs = sheet.sheetnames
+
+    grade_scheme_tabs = [tab for tab in all_tabs if tab.startswith("Grade Scheme") or tab.startswith("Grade Rule")]
+    class_tabs = [tab for tab in all_tabs if len(tab.split("-")) == 2]
+    sentence_tabs = [tab for tab in all_tabs if tab.startswith("Sentences")]
+
+    class_students = []
+    preset_list = {}
+    grade_rules = []
+
+    switch_screen("Reports")
+
+    if not first_run:
+        class_dropdown.currentIndexChanged.disconnect()
+        student_dropdown.currentIndexChanged.disconnect()
+    class_dropdown.clear()
+    class_dropdown.addItems([tab for tab in class_tabs])
+    fill_class_data()
+    class_dropdown.currentIndexChanged.connect(fill_class_data)
+    student_dropdown.currentIndexChanged.connect(update_student)
+    first_run = False
+
+def setup_existing():
+    global sheet
+    global report_sheet
+
+    valid, sheet = validate_sheet(prefs.get_pref("report_sheet"))
+    if valid:
+        report_sheet = prefs.get_pref("report_sheet")
+        setup()
+
+
+def setup_sheet_from_file():
+    global sheet
+    global report_sheet
+
+    file = file_select("Excel Sheet", excel_extensions)
+    prefs.update_pref("is_web", False)
+    prefs.update_pref("report_sheet", file)
+    report_sheet = prefs.get_pref("report_sheet")
+    sheet = openpyxl.load_workbook(file)
+    setup()
+
+
+def validate_sheet(report):
+    global report_sheet
+
+    if os.path.isfile(report) and report.endswith(tuple(excel_extensions)):
+        try:
+            workbook = openpyxl.load_workbook(report)
+            prefs.update_pref("is_web", False)
+            prefs.update_pref("report_sheet", report)
+            return True, workbook
+        except openpyxl.utils.exceptions.InvalidFileException:
+            return False, "Invalid Excel File! Input Spreadsheet Link/Filepath:"
+    elif not os.path.isfile(report):
+        check_is = ["d", "https:", "spreadsheets", "http:", "docs.google.com", '']
+        check_starts = ["edit#"]
+
+        report = [part for part in report.split('/') if not part in check_is and not part.startswith(*check_starts)]
+        if len(report) != 1:
+            return False, "Couldn't isolate sheet ID!"
+        else:
+            try:
+                sheet_data = get_sheet(report[0])
+                report_sheet = report[0]
+                prefs.update_pref("report_sheet", report[0])
+                prefs.update_pref("is_web", True)
+                return True, sheet_data
+            except googleapiclient.errors.HttpError:
+                return False, "Report Link Failure!"
+    else:
+        return False, "File is not Excel sheet!"
+
+
+def setup_sheet_from_dialog(report=None):
+    global report_sheet
+    global sheet
+
+    prompt_text = "Input Spreadsheet Link/Filepath:"
+    response = ""
+    valid = False
+    while not valid:
+        ask_for = response
+        if not report:
+            report, ok = QInputDialog(screens["Reports"]).getText(screens["Reports"], "Report Sheet", prompt_text + ask_for, QLineEdit.Normal, "")
+            if not ok:
+                sheet = False
+                return
+        valid, response = validate_sheet(report)
+        report = None
+    sheet = response
+    setup()
+
+
+if len(report_sheet) > 0:
+    setup_existing()
+
+select_sheet_file_button = Button("Setup", "Select Sheet (File)", screens['Setup'].width() / 3, screens['Setup'].height() / 3, False)
+select_sheet_prompt_button = Button("Setup", "Select Sheet (URL)", select_sheet_file_button.x() + select_sheet_file_button.width(), screens['Setup'].height() / 3, False)
+
+create_excel_button = Button("Setup", "Create Excel Spreadsheet for Reports", screens['Setup'].width() / 3, select_sheet_file_button.y() + select_sheet_file_button.height(), False)
+create_sheets_button = Button("Setup", "Create Google Sheets for Reports", create_excel_button.x() + create_excel_button.width(), select_sheet_file_button.y() + select_sheet_file_button.height(), False)
+
+select_sheet_file_button.clicked.connect(setup_sheet_from_file)
+select_sheet_prompt_button.clicked.connect(setup_sheet_from_dialog)
 
 report_area.textChanged.connect(local_save_report)
-class_dropdown.currentIndexChanged.connect(fill_class_data)
-student_dropdown.currentIndexChanged.connect(update_student)
 submit_button.clicked.connect(send_report)
 generate_button.clicked.connect(generate_report)
 preset_button.clicked.connect(generate_report_from_preset)
 grade_button.clicked.connect(generate_report_from_grades)
-reload_button.clicked.connect(setup)
+reload_button.clicked.connect(setup_existing)
 refresh_button.clicked.connect(update_sentences)
 reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 add_sentence_button.clicked.connect(add_sentence)
 
 if __name__ == "__main__":
     app.exec()
+
 
 

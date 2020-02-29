@@ -56,9 +56,10 @@ class Window(QWidget):
             exit()
 
 screens = {
-    "Reports":Window("Reports", 0, 0, 1000, 750, True),
+    "Reports":Window("Reports", 0, 0, 1000, 750, False),
     "Preferences":Window("Preferences", 0, 0, 1000, 750, False),
-    "Grades":Window("Grades", 0, 0, 1000, 750, False)
+    "Grades":Window("Grades", 0, 0, 1000, 750, False),
+    "Setup":Window("Sheet Setup", 0, 0, 1000, 750, True),
 }
 
 def switch_screen(to):
@@ -97,8 +98,6 @@ class Button(QPushButton):
         if event.key() == Qt.Key_Escape:
             exit()
 
-
-
 class Label(QLabel):
     def __init__(self, screen, text, x, y, visible=True):
         if screen in screens:
@@ -114,16 +113,6 @@ class Label(QLabel):
 
     def setupFont(self, size=24, font_family="Arial"):
         self.setFont(QFont(font_family, size, QFont.Bold))
-
-class Input(QLineEdit):
-    def __init__(self, screen, x, y):
-        if screen in screens:
-            self.screen = screen
-            super(Input, self).__init__(screens[screen])
-        else:
-            self.screen = None
-        self.move(x, y)
-        self.show()
 
 class Dropdown(QComboBox):
     def __init__(self, screen, x, y, options, focusOnTab=True):
@@ -164,7 +153,7 @@ class Textarea(QTextEdit):
         self.show()
 
 class Checkbox(QCheckBox):
-    def __init__(self, screen, x, y, ):
+    def __init__(self, screen, x, y):
         if screen in screens:
             self.screen = screen
             super(Checkbox, self).__init__(screens[screen])
@@ -189,4 +178,5 @@ class ColorSelector(QColorDialog):
         if color.isValid() and prefs.has_pref(color_pref):
             prefs.update_pref(color_pref, color.name())
             QApplication.instance().changeStyle()
+
 
