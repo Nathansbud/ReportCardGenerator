@@ -1,6 +1,7 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, QShortcut
 from PyQt5.QtCore import Qt, QEvent
-from PyQt5.QtGui import QColor, QPalette, QFont, QBrush
+from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCursor
+
 
 from sys import exit
 from preferences import prefs
@@ -60,7 +61,8 @@ screens = {
     "Preferences":Window("Preferences", 0, 0, 1000, 750, False),
     "Grades":Window("Grades", 0, 0, 1000, 750, False),
     "Setup":Window("Sheet Setup", 0, 0, 1000, 750, True),
-    "Builder":Window("Sheet Builder", 0, 0, 1000, 750, False)
+    "Builder":Window("Sheet Builder", 0, 0, 1000, 750, False),
+    "Test":Window("Testing", 0, 0, 1000, 750, False)
 }
 
 def switch_screen(to):
@@ -197,7 +199,43 @@ class Textarea(QTextEdit):
         self.setGeometry(x, y, w, h)
         self.setText(content)
         self.setTabChangesFocus(True)
+
+        self.italic = QShortcut(QKeySequence("Ctrl+I"), self)
+        self.italicActive = False
+
+        self.bold = QShortcut(QKeySequence("Ctrl+B"), self)
+        self.boldActive = False
+
+        self.underline = QShortcut(QKeySequence("Ctrl+U"), self)
+        self.underlineActive = False
+
+        self.strikethrough = QShortcut(QKeySequence("Ctrl+L"), self)
+        self.strikethroughActive = False
+
+        self.italic.activated.connect(self.makeItalic)
+        self.bold.activated.connect(self.makeBold)
+        self.underline.activated.connect(self.makeUnderline)
+        self.strikethrough.activated.connect(self.makeStrikethrough)
         self.show()
+
+    def makeItalic(self):
+        if self.isActiveWindow():
+            start, end = self.textCursor().anchor(), self.textCursor().position()
+            if (start - end) == 0:
+                if not self.italicActive:
+                    # self.insertHtml("<i>ITALICS")
+                    print("Should in-place toggle italics")
+                    self.italicActive = True
+                else:
+                    # self.setHtml(self.toHtml()[0:-13]+"</i>")
+                    # self.moveCursor(QTextCursor.End)
+                    print("Should in-place toggle off italics")
+                    self.italicActive = False
+            else:
+                print("Should handle italics on region")
+    def makeStrikethrough(self): print("Strikethrough: Unimplemented")
+    def makeBold(self): print("Bold: Unimplemented")
+    def makeUnderline(self): print("Underline: Unimplemented")
 
 class Checkbox(QCheckBox):
     def __init__(self, screen, x, y):

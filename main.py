@@ -827,6 +827,8 @@ refresh_button.clicked.connect(update_sentences)
 reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 add_sentence_button.clicked.connect(add_sentence)
 
+html_report = Textarea("Test", "", 0, 100, 500, 500)
+
 if __name__ == "__main__":
     app.exec()
 
