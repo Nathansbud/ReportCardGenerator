@@ -240,8 +240,8 @@ class SentenceGroup:
 
         self.checkbox = Checkbox("Reports", x, y)
         self.label = Label("Reports", label, x + self.checkbox.width(), y)
-        self.options = options #real value of sentences
         self.dropdown = Dropdown("Reports", self.label.x() + self.label.width(), y, [replace_generics(option) for option in options])
+        self.dropdown.options = options
 
         self.add = Button("Reports", "+", self.dropdown.x() + self.dropdown.width(), y, False)
         self.remove = Button("Reports", "-", self.add.x() + self.add.width(), y, False)
@@ -262,7 +262,7 @@ class SentenceGroup:
         self.change.move(self.remove.x() + self.remove.width(), y)
 
     def delete(self):
-        self.options = None
+        self.dropdown.options = None
         self.dropdown.deleteLater()
         self.label.deleteLater()
         self.checkbox.deleteLater()
@@ -273,7 +273,7 @@ class SentenceGroup:
     def addOption(self):
         text, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Add Option", "Sentence", QLineEdit.Normal, "")
         if ok and len(text) > 0:
-            self.options.append(text) 
+            self.dropdown.options.append(text)
             self.dropdown.addItem(replace_generics(text))
             self.dropdown.setCurrentIndex(self.dropdown.count()-1)
             self.checkbox.setChecked(True)
@@ -283,14 +283,14 @@ class SentenceGroup:
 
     def removeOption(self):
         if self.dropdown.count() > 0:
-            SentenceGroup.dialog.setComboBoxItems(self.options)
+            SentenceGroup.dialog.setComboBoxItems(self.dropdown.options)
             SentenceGroup.dialog.setWindowTitle("Remove Item")
             SentenceGroup.dialog.setLabelText("Choose an item to remove:")
 
             if SentenceGroup.dialog.exec():
-                self.options.remove(SentenceGroup.dialog.textValue())
+                self.dropdown.options.remove(SentenceGroup.dialog.textValue())
                 self.dropdown.clear()
-                self.dropdown.addItems([replace_generics(option) for option in self.options])
+                self.dropdown.addItems([replace_generics(option) for option in self.dropdown.options])
                 if self.dropdown.count() == 0:
                     self.checkbox.setChecked(False)
                 sentence_thread = Thread(target=self.write_sentences)
@@ -311,16 +311,16 @@ class SentenceGroup:
 
     def editOption(self):
         if self.dropdown.count() > 0:
-            SentenceGroup.dialog.setComboBoxItems(self.options)
+            SentenceGroup.dialog.setComboBoxItems(self.dropdown.options)
             SentenceGroup.dialog.setWindowTitle("Edit Item")
             SentenceGroup.dialog.setLabelText("Choose an item to edit:")
             if SentenceGroup.dialog.exec():
                 replace, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Replacement Option", "Replace '{}' With:".format(SentenceGroup.dialog.textValue()), QLineEdit.Normal, SentenceGroup.dialog.textValue())
                 if ok and len(replace) > 0:
-                    index = self.options.index(SentenceGroup.dialog.textValue())
-                    self.options[index] = replace
+                    index = self.dropdown.options.index(SentenceGroup.dialog.textValue())
+                    self.dropdown.options[index] = replace
                     self.dropdown.clear()
-                    self.dropdown.addItems([replace_generics(option) for option in self.options])
+                    self.dropdown.addItems([replace_generics(option) for option in self.dropdown.options])
                     self.dropdown.setCurrentIndex(index)
 
                     sentence_thread = Thread(target=self.write_sentences)
@@ -345,7 +345,7 @@ class SentenceGroup:
                 sheet.save(prefs.get_pref('report_sheet'))
         else:
             buffer_list = ["", "", "", "", ""] #account for the fact that in removing, there are floating cells not part of options; have a 5-long buffer to manage that
-            write_list = self.options + buffer_list
+            write_list = self.dropdown.options + buffer_list
             if prefs.get_pref('is_web'):
                 write_sheet(report_sheet, [write_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0],
                                                                                      col, col + str(len(write_list) + 1)), "COLUMNS")
@@ -601,12 +601,9 @@ def generate_report_from_preset():
 grades_table = Table('Grades', header=["Assignment", "Grade", "Scheme"], locked=["Assignment", "Scheme"], x=0, y=0, w=700, h=screens['Reports'].height())
 
 builder_table = Table("Builder", header=["Student Name", "Gender"], x=0, y=30, w=screens["Builder"].width(), h=screens['Builder'].height()*0.8)
-builder_dropdown = Dropdown("Builder", x=screens["Builder"].width()/2.25, y=0, options=["First Tab"])
+builder_dropdown = Dropdown("Builder", x=screens["Builder"].width()/2.25, y=0, options=["First Tab"], editable=True)
 builder_generate_excel_button = Button("Builder", "Generate Excel", x=screens["Builder"].width()/3, y=builder_table.y()+builder_table.height())
 builder_generate_sheets_button = Button("Builder", "Generate Sheets", x=builder_generate_excel_button.x()+builder_generate_excel_button.width(), y=builder_table.y()+builder_table.height())
-builder_dropdown.setEditable(True)
-builder_dropdown.currentTextChanged.connect(lambda: print(builder_dropdown.options))
-builder_dropdown.setInsertPolicy(QComboBox.InsertAfterCurrent)
 
 def grade_cell_changed(item):
     global class_students

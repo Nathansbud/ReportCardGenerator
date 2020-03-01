@@ -52,9 +52,9 @@ class Window(QWidget):
             palette.setColor(QPalette.ButtonText, text_color)
         self.setPalette(palette)
 
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            exit()
+    # def keyPressEvent(self, event):
+    #     if event.key() == Qt.Key_Escape:
+    #         exit()
 
 screens = {
     "Reports":Window("Reports", 0, 0, 1000, 750, False),
@@ -94,12 +94,10 @@ class Button(QPushButton):
             self.setFocusPolicy(Qt.ClickFocus)
 
     def keyPressEvent(self, event) -> None:
-        if event.type() == QEvent.KeyPress:
-            if event.key() == Qt.Key_Enter or event.key() == Qt.Key_Return:
-                self.click()
-
-        if event.key() == Qt.Key_Escape:
-            exit()
+        if event.key() == Qt.Key_Enter or event.key() == Qt.Key_Return:
+            self.click()
+        else:
+            super(Button, self).keyPressEvent(event)
 
 class Label(QLabel):
     def __init__(self, screen, text, x, y, visible=True):
@@ -118,7 +116,7 @@ class Label(QLabel):
         self.setFont(QFont(font_family, size, QFont.Bold))
 
 class Dropdown(QComboBox):
-    def __init__(self, screen, x, y, options, focusOnTab=True):
+    def __init__(self, screen, x, y, options, focusOnTab=True, editable=False):
         if screen in screens:
             self.screen = screen
             super(Dropdown, self).__init__(screens[screen])
@@ -129,19 +127,39 @@ class Dropdown(QComboBox):
             self.setFocusPolicy(Qt.StrongFocus)
         else:
             self.setFocusPolicy(Qt.ClickFocus)
+
+
+        self.options = options
         self.addItems(options)
         self.lastSelected = " "
         self.history = [" "]
         self.setMaximumWidth(650)
+        self.setEditable(editable)
+        if self.isEditable():
+            self.setInsertPolicy(QComboBox.InsertAtCurrent)
+            self.editTextChanged.connect(self.modifyText)
         self.show()
 
     def keyPressEvent(self, event) -> None:
-        if event.type() == QEvent.KeyPress:
-            if event.key() == Qt.Key_Enter or event.key() == Qt.Key_Return:
+        if event.key() in [Qt.Key_Return, Qt.Key_Enter]:
+            if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
                 self.showPopup()
-        if event.key() == Qt.Key_Escape:
-            exit()
+        else:
+            super(Dropdown, self).keyPressEvent(event)
 
+    def modifyText(self, text):
+        #idk how 2 do this
+        # if self.isEditable():
+        #     if len(self.options) == 0:
+        #         self.options.append(text)
+        #         self.setCurrentIndex(self.count()-1)
+        #     else:
+        #         index = self.currentIndex()
+        #         self.options[self.currentIndex()] = text
+        #         self.clear()
+        #         self.addItems(self.options)
+        #         self.setCurrentIndex(index)
+        pass
 
 class Table(QTableWidget):
     def __init__(self, screen, header=None, data=None, x=None, y=None, w=None, h=None, locked=None, changed=None):
