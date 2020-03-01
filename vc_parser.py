@@ -3,7 +3,7 @@ import os
 import json
 
 with open(os.path.join(os.path.dirname(__file__), "credentials", "veracross.json"), "r+") as jf: veracross = json.load(jf)
-def get_classes(vc_link="https://accounts.veracross.eu/asb/portals/login"):
+def get_class_json(vc_link="https://accounts.veracross.eu/asb/portals/login"):
     options = webdriver.ChromeOptions()
     options.add_argument("headless")
     browser = webdriver.Chrome(options=options)
@@ -26,14 +26,12 @@ def get_classes(vc_link="https://accounts.veracross.eu/asb/portals/login"):
 
     for code in classes:
         browser.get(classes[code]['url'])
-        students = browser.find_elements_by_class_name("full_name")
-        if len(students) >= 2:
-            students = students[1:-1]
-            #split on triple space (sep of name & grade), split on comma & reverse to have First Last be name structure
-            student_names = [" ".join(student.text.split("   ")[0].split(", ")[::-1]) for student in students]
-            classes[code]['students'] = student_names
-        else:
-            pass
+        #get student names; class_json
+        # classes[code]['students'] = [student.get_attribute("data-student-name") for student in browser.find_elements_by_class_name("student-name")]
+        #innerHTML works to get loose text; text doesn't (lmao)
+        class_inner = browser.find_element_by_class_name("student-names-drop-down").get_attribute("innerHTML")
+        class_json = json.loads(class_inner[class_inner.find("["):class_inner.rfind("]")+1].replace("=&gt;", ":").replace(":nil", ":null"))
+        classes[code]["students"] = class_json
     return classes
 if __name__ == "__main__":
     print(get_classes())

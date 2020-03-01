@@ -3,6 +3,7 @@
   "report_sheet": "",
   "format_unfinished": true,
   "unfinished_color": "#ff0000",
+  "class_portal": "",
   "dark_theme": {
     "is_dark": true,
     "bg_color": "#111111",

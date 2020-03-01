@@ -8,7 +8,8 @@ class Preferences:
     copy_list = [
         'report_sheet',
         'format_unfinished',
-        'unfinished_color'
+        'unfinished_color',
+        'class_portal'
     ]
     os = platform.system()
     if os == "Darwin":

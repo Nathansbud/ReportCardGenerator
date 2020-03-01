@@ -6,13 +6,14 @@ from threading import Thread
 import googleapiclient.errors
 import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QComboBox
 
 from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table
 from cuter import app, screens, switch_screen
 from grades import GradeSet, load_grades
 from preferences import prefs
 from sheets import get_sheet, write_sheet
+from vc_parser import get_class_json
 
 '''
 Todo:
@@ -21,6 +22,8 @@ Todo:
     - Format student dropdown for unfinished reports
     - Use Sheets/Excel to CREATE spreadsheet
     - Use Sheets API file selector
+    - Support for multi-paragraph
+    - Support for RTF (italics)
 '''
 
 excel_extensions = ["xlsx", "xlsm", "xltx", "xltm", "xlw"]
@@ -597,6 +600,14 @@ def generate_report_from_preset():
 
 grades_table = Table('Grades', header=["Assignment", "Grade", "Scheme"], locked=["Assignment", "Scheme"], x=0, y=0, w=700, h=screens['Reports'].height())
 
+builder_table = Table("Builder", header=["Student Name", "Gender"], x=0, y=30, w=screens["Builder"].width(), h=screens['Builder'].height()*0.8)
+builder_dropdown = Dropdown("Builder", x=screens["Builder"].width()/2.25, y=0, options=["First Tab"])
+builder_generate_excel_button = Button("Builder", "Generate Excel", x=screens["Builder"].width()/3, y=builder_table.y()+builder_table.height())
+builder_generate_sheets_button = Button("Builder", "Generate Sheets", x=builder_generate_excel_button.x()+builder_generate_excel_button.width(), y=builder_table.y()+builder_table.height())
+builder_dropdown.setEditable(True)
+builder_dropdown.currentTextChanged.connect(lambda: print(builder_dropdown.options))
+builder_dropdown.setInsertPolicy(QComboBox.InsertAfterCurrent)
+
 def grade_cell_changed(item):
     global class_students
     global student_dropdown
@@ -734,11 +745,12 @@ def setup_sheet_from_file():
     global report_sheet
 
     file = file_select("Excel Sheet", excel_extensions)
-    prefs.update_pref("is_web", False)
-    prefs.update_pref("report_sheet", file)
-    report_sheet = prefs.get_pref("report_sheet")
-    sheet = openpyxl.load_workbook(file)
-    setup()
+    if file:
+        prefs.update_pref("is_web", False)
+        prefs.update_pref("report_sheet", file)
+        report_sheet = prefs.get_pref("report_sheet")
+        sheet = openpyxl.load_workbook(file)
+        setup()
 
 
 def validate_sheet(report):
@@ -791,18 +803,19 @@ def setup_sheet_from_dialog(report=None):
     sheet = response
     setup()
 
-
 if len(report_sheet) > 0:
     setup_existing()
 
 select_sheet_file_button = Button("Setup", "Select Sheet (File)", screens['Setup'].width() / 3, screens['Setup'].height() / 3, False)
 select_sheet_prompt_button = Button("Setup", "Select Sheet (URL)", select_sheet_file_button.x() + select_sheet_file_button.width(), screens['Setup'].height() / 3, False)
 
-create_excel_button = Button("Setup", "Create Excel Spreadsheet for Reports", screens['Setup'].width() / 3, select_sheet_file_button.y() + select_sheet_file_button.height(), False)
-create_sheets_button = Button("Setup", "Create Google Sheets for Reports", create_excel_button.x() + create_excel_button.width(), select_sheet_file_button.y() + select_sheet_file_button.height(), False)
+create_report_sheet_button = Button("Setup", "Create Reports Sheet", screens['Setup'].width() / 3, select_sheet_file_button.y() + select_sheet_file_button.height(), False)
+report_sheet_back_button = Button("Builder", "Back", 0, 0, False)
 
 select_sheet_file_button.clicked.connect(setup_sheet_from_file)
 select_sheet_prompt_button.clicked.connect(setup_sheet_from_dialog)
+create_report_sheet_button.clicked.connect(lambda: switch_screen("Builder"))
+report_sheet_back_button.clicked.connect(lambda: switch_screen("Setup"))
 
 report_area.textChanged.connect(local_save_report)
 submit_button.clicked.connect(send_report)
