@@ -1,7 +1,7 @@
 {
   "is_web": false,
   "report_sheet": "",
-  "format_unfinished": true,
+  "format_unfinished": false,
   "unfinished_color": "#ff0000",
   "class_portal": "",
   "dark_theme": {
@@ -15,6 +15,7 @@
     "bg_color": "#d3d3d3",
     "txt_color": "#000000",
     "lbl_color": "#ff0000"
-  }
+  },
+  "debug": true
 }
 

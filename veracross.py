@@ -26,13 +26,10 @@ def get_class_json(vc_link="https://accounts.veracross.eu/asb/portals/login"):
 
     for code in classes:
         browser.get(classes[code]['url'])
-        #get student names; class_json
-        # classes[code]['students'] = [student.get_attribute("data-student-name") for student in browser.find_elements_by_class_name("student-name")]
-        #innerHTML works to get loose text; text doesn't (lmao)
         class_inner = browser.find_element_by_class_name("student-names-drop-down").get_attribute("innerHTML")
         class_json = json.loads(class_inner[class_inner.find("["):class_inner.rfind("]")+1].replace("=&gt;", ":").replace(":nil", ":null"))
         classes[code]["students"] = class_json
     return classes
 if __name__ == "__main__":
-    print(get_classes())
+    print(get_class_json())
     pass

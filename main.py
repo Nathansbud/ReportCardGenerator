@@ -13,7 +13,7 @@ from cuter import app, screens, switch_screen
 from grades import GradeSet, load_grades
 from preferences import prefs
 from sheets import get_sheet, write_sheet
-from vc_parser import get_class_json
+from veracross import get_class_json
 
 '''
 Todo:
@@ -36,6 +36,13 @@ def file_select(name, extensions):
     if dialog.exec():
         return dialog.selectedFiles()[0]
     return False #False = Failed
+
+def directory_select():
+    dialog = QFileDialog()
+    dialog.setFileMode(QFileDialog.DirectoryOnly)
+    if dialog.exec():
+        return dialog.selectedFiles()[0]
+    return False
 
 report_column = "D"
 report_column_index = 3
@@ -78,18 +85,23 @@ open_grades_from_reports_button = Button("Reports", "Open Grades", screens['Repo
 open_grades_from_reports_button.move(screens['Reports'].width() - open_grades_from_reports_button.width(), 0)
 
 open_preferences_from_reports_button = Button("Reports", "Open Preferences", reload_grade_schemes_button.x() + reload_grade_schemes_button.width(), preset_dropdown.y(), False)
+open_setup_from_report_button = Button("Reports", "Open Sheet Setup", open_preferences_from_reports_button.x(), open_preferences_from_reports_button.y()+open_preferences_from_reports_button.height(), False, shown=False)
+
 open_reports_from_preferences_button = Button("Preferences", "Open Reports", screens['Preferences'].width() - 50, 0, False)
 open_reports_from_preferences_button.move(screens['Preferences'].width() - open_reports_from_preferences_button.width(), 0)
-
 
 open_reports_from_grades_button = Button("Grades", "Open Reports", screens['Grades'].width() - 50, 0, False)
 open_reports_from_grades_button.move(screens['Grades'].width() - open_reports_from_preferences_button.width(), 0)
 
-open_preferences_from_reports_button.clicked.connect(lambda: switch_screen("Preferences"))
-open_reports_from_preferences_button.clicked.connect(lambda: switch_screen("Reports"))
-open_grades_from_reports_button.clicked.connect(lambda: switch_screen("Grades"))
-open_reports_from_grades_button.clicked.connect(lambda: switch_screen("Reports"))
+open_reports_from_setup_button = Button("Setup", "Back", 0, 0, False, shown=False)
 
+open_grades_from_reports_button.clicked.connect(lambda: switch_screen("Grades"))
+open_preferences_from_reports_button.clicked.connect(lambda: switch_screen("Preferences"))
+open_setup_from_report_button.clicked.connect(lambda: switch_screen("Setup"))
+
+open_reports_from_grades_button.clicked.connect(lambda: switch_screen("Reports"))
+open_reports_from_preferences_button.clicked.connect(lambda: switch_screen("Reports"))
+open_reports_from_setup_button.clicked.connect(lambda: switch_screen("Reports"))
 
 reload_button = Button("Reports", "Reload", open_grades_from_reports_button.x(), open_grades_from_reports_button.y() + open_grades_from_reports_button.height(), False)
 
@@ -600,10 +612,55 @@ def generate_report_from_preset():
 
 grades_table = Table('Grades', header=["Assignment", "Grade", "Scheme"], locked=["Assignment", "Scheme"], x=0, y=0, w=700, h=screens['Reports'].height())
 
-builder_table = Table("Builder", header=["Student Name", "Gender"], x=0, y=30, w=screens["Builder"].width(), h=screens['Builder'].height()*0.8)
-builder_dropdown = Dropdown("Builder", x=screens["Builder"].width()/2.25, y=0, options=["First Tab"], editable=True)
-builder_generate_excel_button = Button("Builder", "Generate Excel", x=screens["Builder"].width()/3, y=builder_table.y()+builder_table.height())
-builder_generate_sheets_button = Button("Builder", "Generate Sheets", x=builder_generate_excel_button.x()+builder_generate_excel_button.width(), y=builder_table.y()+builder_table.height())
+class TableBuilder:
+    def __init__(self, options=None, tables=None):
+        self.options = options if options else []
+        self.tables = tables if tables else []
+        self.dropdown = Dropdown("Builder", x=screens["Builder"].width()/2.25, y=0, options=self.options, editable=True)
+
+        self.veracross_button = Button("Builder", "Load from Veracross", x=screens["Builder"].width()/4, y=700)
+        self.excel_button = Button("Builder", "Save Excel", x=self.veracross_button.x()+self.veracross_button.width(), y=self.veracross_button.y())
+        self.sheets_button = Button("Builder", "Save Sheets", x=self.excel_button.x()+self.excel_button.width(), y=self.excel_button.y())
+        self.dropdown.currentIndexChanged.connect(self.change_class)
+
+        self.excel_button.clicked.connect(self.create_excel_sheet)
+        self.veracross_button.clicked.connect(self.generate_from_veracross)
+
+    def create_excel_sheet(self):
+        global report_sheet
+        file = QFileDialog.getSaveFileName(screens["Builder"], 'Dialog Title', os.path.join(os.path.dirname(__file__), "data"), '(*.xlsx)')
+        if len(file[0]) > 0:
+            excel_sheet = openpyxl.Workbook()
+            for i, tab in enumerate(self.options):
+                excel_sheet.create_sheet(title=tab)
+                excel_sheet[tab].append(self.tables[i].header)
+                for j, row in enumerate(self.tables[i].data):
+                    excel_sheet[tab].append(row)
+            excel_sheet.save(file[0])
+            prefs.update_pref("is_web", False)
+            prefs.update_pref("report_sheet", file[0])
+            report_sheet = file[0]
+            setup_existing()
+
+    def generate_from_veracross(self):
+        class_json = get_class_json()
+        self.dropdown.clear()
+        self.options = []
+        for t in self.tables: t.deleteLater()
+        for c in class_json:
+            class_name = class_json[c]['name']
+            student_set = [[s['preferred_name'], s['last_name'], s['gender'], ""] for s in class_json[c]['students']]
+            self.tables.append(Table("Builder", header=["First", "Last", "Gender", "Report"], x=0, y=30, w=screens["Builder"].width(), h=500, shown=False))
+            self.tables[-1].updateTable(student_set)
+            self.options.append(class_name)
+        self.dropdown.addItems(self.options)
+        self.tables[-1].show()
+
+    def change_class(self):
+        for t in self.tables: t.hide()
+        self.tables[self.dropdown.currentIndex()].show()
+
+table_builder = TableBuilder()
 
 def grade_cell_changed(item):
     global class_students
@@ -715,6 +772,7 @@ def setup():
     grade_rules = []
 
     switch_screen("Reports")
+    open_reports_from_setup_button.show()
 
     if not first_run:
         class_dropdown.currentIndexChanged.disconnect()
@@ -807,12 +865,12 @@ select_sheet_file_button = Button("Setup", "Select Sheet (File)", screens['Setup
 select_sheet_prompt_button = Button("Setup", "Select Sheet (URL)", select_sheet_file_button.x() + select_sheet_file_button.width(), screens['Setup'].height() / 3, False)
 
 create_report_sheet_button = Button("Setup", "Create Reports Sheet", screens['Setup'].width() / 3, select_sheet_file_button.y() + select_sheet_file_button.height(), False)
-report_sheet_back_button = Button("Builder", "Back", 0, 0, False)
+open_setup_from_builder_button = Button("Builder", "Back", 0, 0, False)
 
 select_sheet_file_button.clicked.connect(setup_sheet_from_file)
 select_sheet_prompt_button.clicked.connect(setup_sheet_from_dialog)
 create_report_sheet_button.clicked.connect(lambda: switch_screen("Builder"))
-report_sheet_back_button.clicked.connect(lambda: switch_screen("Setup"))
+open_setup_from_builder_button.clicked.connect(lambda: switch_screen("Setup"))
 
 report_area.textChanged.connect(local_save_report)
 submit_button.clicked.connect(send_report)
@@ -823,8 +881,6 @@ reload_button.clicked.connect(setup_existing)
 refresh_button.clicked.connect(update_sentences)
 reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 add_sentence_button.clicked.connect(add_sentence)
-
-html_report = Textarea("Test", "", 0, 100, 500, 500)
 
 if __name__ == "__main__":
     app.exec()

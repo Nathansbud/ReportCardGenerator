@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, QShortcut
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, QShortcut, QProgressDialog
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCursor
 
@@ -52,9 +52,11 @@ class Window(QWidget):
             palette.setColor(QPalette.ButtonText, text_color)
         self.setPalette(palette)
 
-    # def keyPressEvent(self, event):
-    #     if event.key() == Qt.Key_Escape:
-    #         exit()
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key_Escape:
+            if prefs.get_pref("debug"): exit()
+        else:
+            super(Window, self).keyPressEvent(event)
 
 screens = {
     "Reports":Window("Reports", 0, 0, 1000, 750, False),
@@ -79,7 +81,7 @@ def switch_screen(to):
                     screens[screen].show()
 
 class Button(QPushButton):
-    def __init__(self, screen, text, x, y, focusOnTab=True):
+    def __init__(self, screen, text, x, y, focusOnTab=True, shown=True):
         if screen in screens:
             self.screen = screen
             super(Button, self).__init__(screens[screen])
@@ -87,7 +89,8 @@ class Button(QPushButton):
             self.screen = None
         self.setText(text)
         self.move(x, y)
-        self.show()
+
+        if shown: self.show()
         if focusOnTab:
             self.setFocusPolicy(Qt.StrongFocus)
         else:
@@ -100,7 +103,7 @@ class Button(QPushButton):
             super(Button, self).keyPressEvent(event)
 
 class Label(QLabel):
-    def __init__(self, screen, text, x, y, visible=True):
+    def __init__(self, screen, text, x, y, shown=True):
         if screen in screens:
             self.screen = screen
             super(Label, self).__init__(screens[screen])
@@ -110,7 +113,7 @@ class Label(QLabel):
         self.setText(text)
         self.move(x, y)
         self.setupFont()
-        if visible: self.show()
+        if shown: self.show()
 
     def setupFont(self, size=24, font_family="Arial"):
         self.setFont(QFont(font_family, size, QFont.Bold))
@@ -138,6 +141,7 @@ class Dropdown(QComboBox):
         if self.isEditable():
             self.setInsertPolicy(QComboBox.InsertAtCurrent)
             self.editTextChanged.connect(self.modifyText)
+
         self.show()
 
     def keyPressEvent(self, event) -> None:
@@ -162,7 +166,7 @@ class Dropdown(QComboBox):
         pass
 
 class Table(QTableWidget):
-    def __init__(self, screen, header=None, data=None, x=None, y=None, w=None, h=None, locked=None, changed=None):
+    def __init__(self, screen, header=None, data=None, x=None, y=None, w=None, h=None, locked=None, changed=None, shown=True):
         if screen in screens:
             self.screen = screen
             super(Table, self).__init__(len(data) if data else 0, len(data[0]) if data else 0, screens[screen])
@@ -180,7 +184,7 @@ class Table(QTableWidget):
         self.oldCell = ()
         self.setGeometry(x, y, w, h)
         self.move(x, y)
-        self.show()
+        if shown: self.show()
 
     def cellOpened(self, row, column):
         self.oldText = self.item(row, column).text()
@@ -198,8 +202,7 @@ class Table(QTableWidget):
                 for col in range(0, len(data[row])):
                     item = QTableWidgetItem(data[row][col])
                     item.setForeground(QBrush(QColor(255, 0, 0))) #there is no way to set table info via QSS
-
-                    if self.horizontalHeaderItem(col).text() in self.locked: item.setFlags(Qt.ItemIsEnabled)
+                    if self.locked and self.horizontalHeaderItem(col).text() in self.locked: item.setFlags(Qt.ItemIsEnabled)
                     self.setItem(row, col, item)
         self.setHorizontalHeaderLabels(self.header)
         self.resizeRowsToContents()

@@ -9,7 +9,8 @@ class Preferences:
         'report_sheet',
         'format_unfinished',
         'unfinished_color',
-        'class_portal'
+        'class_portal',
+        'debug'
     ]
     os = platform.system()
     if os == "Darwin":
