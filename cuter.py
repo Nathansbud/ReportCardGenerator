@@ -1,4 +1,6 @@
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, QShortcut, QProgressDialog
+from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox,\
+    QTableWidget, QTableWidgetItem, QHeaderView, QShortcut, QProgressDialog, QMainWindow, QDialog, QFormLayout, QDialogButtonBox,\
+    QLineEdit, QGroupBox, QVBoxLayout
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCursor
 
@@ -131,7 +133,6 @@ class Dropdown(QComboBox):
         else:
             self.setFocusPolicy(Qt.ClickFocus)
 
-
         self.options = options
         self.addItems(options)
         self.lastSelected = " "
@@ -152,21 +153,11 @@ class Dropdown(QComboBox):
             super(Dropdown, self).keyPressEvent(event)
 
     def modifyText(self, text):
-        #idk how 2 do this
-        # if self.isEditable():
-        #     if len(self.options) == 0:
-        #         self.options.append(text)
-        #         self.setCurrentIndex(self.count()-1)
-        #     else:
-        #         index = self.currentIndex()
-        #         self.options[self.currentIndex()] = text
-        #         self.clear()
-        #         self.addItems(self.options)
-        #         self.setCurrentIndex(index)
-        pass
+        if self.count() == 0: self.addItem(text)
+        if text: self.setItemText(self.currentIndex(), text)
 
 class Table(QTableWidget):
-    def __init__(self, screen, header=None, data=None, x=None, y=None, w=None, h=None, locked=None, changed=None, shown=True):
+    def __init__(self, screen, header=None, data=None, x=None, y=None, w=None, h=None, locked=None, changed=None, shown=True, accepted=None, custom_change=False):
         if screen in screens:
             self.screen = screen
             super(Table, self).__init__(len(data) if data else 0, len(data[0]) if data else 0, screens[screen])
@@ -175,19 +166,21 @@ class Table(QTableWidget):
         self.header = header
         self.locked = locked
         self.setHorizontalHeaderLabels(self.header)
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.accepted = accepted #should be dict in form {"HeaderName":{"whitelist":["value1", "value2"] &| "blacklist":["value1", "value2"]}
         self.data = data
         self.changed = changed
         self.cellClicked.connect(self.cellOpened)
-        self.oldText = None
+        if not custom_change: self.itemChanged.connect(self.validate)
+        self.oldText = ""
         self.oldCell = ()
         self.setGeometry(x, y, w, h)
         self.move(x, y)
         if shown: self.show()
 
     def cellOpened(self, row, column):
-        self.oldText = self.item(row, column).text()
+        self.oldText = self.item(row, column).text() if self.item(row, column) else ""
         self.oldCell = (row, column)
         print(column, row, self.oldText)
 
@@ -209,6 +202,29 @@ class Table(QTableWidget):
         self.resizeColumnsToContents()
         self.repaint()
         app.changeStyle()
+
+    def keyPressEvent(self, event):
+        row, column = self.currentRow(), self.currentColumn()
+        if row == self.rowCount() - 1 and column == self.columnCount() - 1 and event.key() == Qt.Key_Tab:
+            self.insertRow(self.rowCount() - 1)
+        else:
+            super().keyPressEvent(event)
+
+    def validate(self, item):
+        if self.oldCell != (item.row(), item.column()): self.oldText = ""
+        row = item.row()
+        column = item.column()
+        horizontal_header = self.horizontalHeaderItem(column)
+        vertical_header = self.verticalHeaderItem(row)
+        if horizontal_header is not None and isinstance(self.accepted, dict) and horizontal_header.text() in self.accepted:
+            if 'whitelist' in self.accepted[horizontal_header.text()]:
+                if not item.text() in self.accepted[horizontal_header.text()]['whitelist']:
+                    item.setText(self.oldText)
+            if 'blacklist' in self.accepted[horizontal_header.text()]:
+                if item.text() in self.accepted[horizontal_header.text()]['blacklist']:
+                    item.setText(self.oldText)
+            self.oldText = item.text()
+
 
 class Textarea(QTextEdit):
     def __init__(self, screen, content, x, y, w, h):
@@ -284,5 +300,51 @@ class ColorSelector(QColorDialog):
         if color.isValid() and prefs.has_pref(color_pref):
             prefs.update_pref(color_pref, color.name())
             QApplication.instance().changeStyle()
+
+#Layout stuff adapted from https://pythonspot.com/pyqt5-form-layout/; rest mine
+class Multidialog(QDialog):
+    def __init__(self, screen, title, form_set):
+
+        if screen in screens:
+            self.screen = screen
+            super(Multidialog, self).__init__(screens[screen])
+        else:
+            self.screen = None
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+
+        self.form_set = form_set
+        self.elements = {}
+        self.title = title
+        self.setWindowTitle(self.title)
+        self.main_layout = QVBoxLayout()
+        self.group_box = QGroupBox()
+        self.first_launch = True
+        layout = QFormLayout()
+        for f in self.form_set:
+            if 'name' in f and 'label' in f and 'type' in f:
+                self.elements[f['name']] = {'label':f['label'], 'type':f['type'], 'object':self.get_element(f['type'])}
+                if 'options' in f:
+                    self.elements[f['name']]['options'] = f['options']
+                    if self.elements[f['type']] == 'dropdown': f['object'].addItems(f['options'])
+            layout.addRow(f['label'], self.elements[f['name']]['object'])
+        self.group_box.setLayout(layout)
+        self.main_layout.addWidget(self.group_box)
+        self.main_layout.addWidget(self.button_box)
+        self.setLayout(self.main_layout)
+
+    def get_element(self, k):
+        if k.lower() == "input": return QLineEdit()
+        elif k.lower() == "dropdown": return QComboBox()
+
+    def refresh(self):
+        for w in self.group_box.children():
+            if isinstance(w, QLineEdit): w.setText("")
+            elif isinstance(w, QComboBox):
+                if w.count() > 0: w.setCurrentIndex(0)
+
+
 
 

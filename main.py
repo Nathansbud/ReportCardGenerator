@@ -6,9 +6,9 @@ from threading import Thread
 import googleapiclient.errors
 import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QComboBox
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QComboBox, QDialog
 
-from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table
+from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table, Multidialog
 from cuter import app, screens, switch_screen
 from grades import GradeSet, load_grades
 from preferences import prefs
@@ -17,13 +17,19 @@ from veracross import get_class_json
 
 '''
 Todo:
-    - Async spreadsheet loading (or a modal dialog)
-    - GUI so that user doesn't have to deal with weird text macros
     - Format student dropdown for unfinished reports
+    - GUI so that user doesn't have to deal with weird text macros
     - Use Sheets/Excel to CREATE spreadsheet
     - Use Sheets API file selector
-    - Support for multi-paragraph
+    - Support for multi-paragraph reports
     - Support for RTF (italics)
+    - Async spreadsheet loading (modal dialog & QThread)
+    - UI overhaul (it's friggin ugly)
+    - Veracross username & password as text field rather than login box
+    - updateTable needs an overhaul
+'''
+'''
+Bugs: None found atm
 '''
 
 excel_extensions = ["xlsx", "xlsm", "xltx", "xltm", "xlw"]
@@ -162,6 +168,7 @@ class Student:
 
         if self.report: self.submitted = True
         else: self.submitted = False
+
     def write_grades(self):
         global sheet
         if prefs.get_pref('is_web'):
@@ -197,7 +204,6 @@ def replace_generics(fmt):
         fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip()
         for key in replace_set:
             fmt = fmt.replace(key, replace_set[key])
-
         #Error Check
         for mp, fp, tp in zip(Student.pronouns['M'], Student.pronouns['F'], Student.pronouns['T']):
             if current_student.gender == "M":
@@ -211,7 +217,7 @@ def replace_generics(fmt):
             fmt = fmt.replace("they is", "they are")
 
         punctuationIndices = []
-        fmt = fmt.capitalize()
+        if len(fmt) > 0: fmt = fmt[0].upper() + fmt[1:]
         for i in range(0, len(fmt)):
             if fmt[i] == "." or fmt[i] == "!" or fmt[i] == "?": punctuationIndices.append(i)
 
@@ -238,7 +244,6 @@ def make_lowercase_generics(fmt):
 
     for match in matches:
         substr = substr[0:match[0]] + fmt[match[0]:match[1]].lower() + fmt[match[1]:]
-
     return substr
 
 class SentenceGroup:
@@ -381,7 +386,6 @@ def reformat_student_dropdown():
             item.setBackground(QColor(255, 255, 0))
         model.appendRow(item)
 
-
 def fill_class_data(class_index=None):
     global report_sheet
     global sheet
@@ -491,7 +495,7 @@ def update_sentences():
                     for entry in current_sentences:
                         if len(entry) > 1:
                             sentences.append(
-                                SentenceGroup("S{}:".format(count+1), 50, 125 + 25 * count, list(filter(None, entry[1:])), ro)
+                                SentenceGroup("S{}:".format(count+1), 50, 150 + 25 * count, list(filter(None, entry[1:])), ro)
                             )
                             count += 1
                         ro+=1
@@ -610,21 +614,34 @@ def generate_report_from_preset():
             report_area.setText(report_area.toPlainText() + replace_generics(elem.text) + " ")
     report_area.repaint()
 
-grades_table = Table('Grades', header=["Assignment", "Grade", "Scheme"], locked=["Assignment", "Scheme"], x=0, y=0, w=700, h=screens['Reports'].height())
+grades_table = Table('Grades', header=["Assignment", "Grade", "Scheme"], locked=["Assignment", "Scheme"], x=0, y=0, w=700, h=screens['Reports'].height(), custom_change=True)
 
 class TableBuilder:
     def __init__(self, options=None, tables=None):
         self.options = options if options else []
         self.tables = tables if tables else []
         self.dropdown = Dropdown("Builder", x=screens["Builder"].width()/2.25, y=0, options=self.options, editable=True)
+        #Set of page options
+        self.add_options = ["Add Page...", "Class", "Sentences", "Schemes", "Other"]
+
+        self.sentence_headers = ["Sentences 1", "Sentences 2", "Sentences 3", "Sentences 4"]
+        self.class_headers = ["First", "Last", "Gender", "Report"]
+
+        self.add_dropdown = Dropdown("Builder", x=self.dropdown.x() + self.dropdown.width(), y = self.dropdown.y(), options=self.add_options)
+        # self.add_button = Button("Builder", "+", x=self.dropdown.x()+self.dropdown.width(), y=self.dropdown.y(), focusOnTab=False)
+        self.remove_button = Button("Builder", "-", x=self.add_dropdown.x() + self.add_dropdown.width(), y=self.dropdown.y(), focusOnTab=False)
+        self.add_dialog = Multidialog("Builder", "Uwu", [{"name":"Class", "label":"Class", "type":"input"}, {"name":"Block", "label":"Block", "type":"input"}])
 
         self.veracross_button = Button("Builder", "Load from Veracross", x=screens["Builder"].width()/4, y=700)
         self.excel_button = Button("Builder", "Save Excel", x=self.veracross_button.x()+self.veracross_button.width(), y=self.veracross_button.y())
         self.sheets_button = Button("Builder", "Save Sheets", x=self.excel_button.x()+self.excel_button.width(), y=self.excel_button.y())
         self.dropdown.currentIndexChanged.connect(self.change_class)
 
+
         self.excel_button.clicked.connect(self.create_excel_sheet)
         self.veracross_button.clicked.connect(self.generate_from_veracross)
+        self.add_dropdown.currentIndexChanged.connect(self.add_option)
+        # self.remove_button.clicked.connect(self.remove_option)
 
     def create_excel_sheet(self):
         global report_sheet
@@ -647,18 +664,41 @@ class TableBuilder:
         self.dropdown.clear()
         self.options = []
         for t in self.tables: t.deleteLater()
+        self.tables = []
         for c in class_json:
             class_name = class_json[c]['name']
             student_set = [[s['preferred_name'], s['last_name'], s['gender'], ""] for s in class_json[c]['students']]
-            self.tables.append(Table("Builder", header=["First", "Last", "Gender", "Report"], x=0, y=30, w=screens["Builder"].width(), h=500, shown=False))
+            self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=False, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
             self.tables[-1].updateTable(student_set)
             self.options.append(class_name)
         self.dropdown.addItems(self.options)
         self.tables[-1].show()
 
     def change_class(self):
-        for t in self.tables: t.hide()
-        self.tables[self.dropdown.currentIndex()].show()
+        if len(self.tables) > 0:
+            for t in self.tables: t.hide()
+            self.tables[self.dropdown.currentIndex()].show()
+            print(self.tables[self.dropdown.currentIndex()].header)
+
+
+    #naive add/remove
+    def add_option(self, index):
+        if index != 0:
+            if self.add_dropdown.currentText() == "Class":
+                if self.add_dialog.exec():
+                    class_name = self.add_dialog.elements['Class']['object'].text().replace("-", " ").strip()
+                    block_name = self.add_dialog.elements['Block']['object'].text().replace("-", " ").strip()
+                    if len(class_name) > 0 and len(block_name) > 0:
+                        tab_name = class_name+"-"+block_name
+                        sentences_name = "Sentences " + class_name
+                        self.dropdown.addItem(sentences_name)
+                        self.tables.append(Table("Builder", header=self.sentence_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=False))
+                        self.dropdown.addItem(tab_name)
+                        self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=True, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
+                        self.tables[-1].updateTable([[""]*4]*10)
+                        self.dropdown.setCurrentIndex(self.dropdown.count() - 1)
+                    self.add_dialog.refresh()
+        self.add_dropdown.setCurrentIndex(0)
 
 table_builder = TableBuilder()
 
@@ -682,6 +722,7 @@ def grade_cell_changed(item):
                 item.setText(grades_table.oldText)
             elif scheme is not None:
                 current_student.grades[assignment.text()]['grade'] = item.text()
+
                 grades_thread = Thread(target=current_student.write_grades)
                 grades_thread.start()
             grades_table.oldText = item.text()
@@ -735,7 +776,7 @@ def update_student(index=None):
     setup_grades_table()
     for sentence in sentences:
         sentence.dropdown.clear()
-        sentence.dropdown.addItems([replace_generics(formatted) for formatted in sentence.options])
+        sentence.dropdown.addItems([replace_generics(formatted) for formatted in sentence.dropdown.options])
 
 def local_save_report():
     global class_students
