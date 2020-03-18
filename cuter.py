@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox,\
     QTableWidget, QTableWidgetItem, QHeaderView, QShortcut, QProgressDialog, QMainWindow, QDialog, QFormLayout, QDialogButtonBox,\
-    QLineEdit, QGroupBox, QVBoxLayout
+    QLineEdit, QGroupBox, QVBoxLayout, QTableView
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCursor
 
@@ -168,25 +168,28 @@ class Table(QTableWidget):
         self.locked = locked
         self.setHorizontalHeaderLabels(self.header)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        self.verticalHeader().setSectionResizeMode(QHeaderView.Fixed)
+        self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.accepted = accepted #should be dict in form {"HeaderName":{"whitelist":["value1", "value2"] &| "blacklist":["value1", "value2"]}
         self.data = data
         self.changed = changed
-        self.cellClicked.connect(self.cellOpened)
         if not custom_change: self.itemChanged.connect(self.validate)
+        self.itemSelectionChanged.connect(self.backupCell)
         self.oldText = ""
         self.oldCell = ()
         self.setGeometry(x, y, w, h)
         self.move(x, y)
         if shown: self.show()
+        self.enterPressed = False
 
-    def cellOpened(self, row, column):
-        self.oldText = self.item(row, column).text() if self.item(row, column) else ""
-        self.oldCell = (row, column)
-        print(column, row, self.oldText)
+    #THERE IS A BUG WITH THIS ON ENTER!
+    def backupCell(self, row=-1, col=-1): #selected and deselected never used, but should be backupCell(selected, deselected)
+        if self.currentItem():
+            self.oldText = self.currentItem().text()
+            self.oldCell = (self.currentItem().row(), self.currentItem().column())
+            print("Backup Cell:", self.oldText, self.oldCell)
 
     def updateTable(self, data=None):
-        self.setRowCount(0)
+        self.clearContents()
         self.data = data
         self.setRowCount(len(data) if data is not None else 0)
         self.setColumnCount(len(data[0]) if data is not None and len(data) > 0 else 0)
@@ -196,9 +199,8 @@ class Table(QTableWidget):
                 for col in range(0, len(data[row])):
                     item = QTableWidgetItem(data[row][col])
                     item.setForeground(QBrush(QColor(255, 0, 0))) #there is no way to set table info via QSS
-                    if self.locked and self.horizontalHeaderItem(col).text() in self.locked: item.setFlags(Qt.ItemIsEnabled)
+                    if self.locked and self.horizontalHeaderItem(col) and self.horizontalHeaderItem(col).text() in self.locked: item.setFlags(Qt.ItemIsEnabled)
                     self.setItem(row, col, item)
-        self.setHorizontalHeaderLabels(self.header)
         self.resizeRowsToContents()
         self.resizeColumnsToContents()
         self.repaint()
@@ -206,26 +208,42 @@ class Table(QTableWidget):
 
     def keyPressEvent(self, event):
         row, column = self.currentRow(), self.currentColumn()
-        if row == self.rowCount() - 1 and column == self.columnCount() - 1 and event.key() == Qt.Key_Tab:
-            self.insertRow(self.rowCount() - 1)
+        editing = self.state() == QTableView.EditingState
+
+        if not editing and event.key() == Qt.Key_Backspace: self.currentItem().setText("")
+        elif row == self.rowCount() - 1 and column == self.columnCount() - 1 and event.key() == Qt.Key_Tab:
+            self.insertRow(self.rowCount())
+            self.setCurrentCell(self.rowCount() - 1, 0)
+        elif editing and row < self.rowCount() - 1 and (event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter):
+            self.enterPressed = True
+        elif editing and column < self.columnCount() - 1 and event.key() == Qt.Key_Right:
+            self.setCurrentCell(row, column + 1)
+            print("Right Column Shift")
+        elif editing and column > 0 and event.key() == Qt.Key_Left:
+            self.setCurrentCell(row, column - 1)
+            print("Left Column Shift")
         else:
             super().keyPressEvent(event)
+            print("Normal Key Event")
 
     def validate(self, item):
         if self.oldCell != (item.row(), item.column()): self.oldText = ""
         row = item.row()
         column = item.column()
+        #print("Validate", self.oldText, row, column)
         horizontal_header = self.horizontalHeaderItem(column)
         vertical_header = self.verticalHeaderItem(row)
         if horizontal_header is not None and isinstance(self.accepted, dict) and horizontal_header.text() in self.accepted:
             if 'whitelist' in self.accepted[horizontal_header.text()]:
-                if not item.text() in self.accepted[horizontal_header.text()]['whitelist']:
+                if not item.text() in self.accepted[horizontal_header.text()]['whitelist'] and item.text() is not "":
                     item.setText(self.oldText)
             if 'blacklist' in self.accepted[horizontal_header.text()]:
                 if item.text() in self.accepted[horizontal_header.text()]['blacklist']:
                     item.setText(self.oldText)
-            self.oldText = item.text()
-
+        #If setCurrentCell is called in keyPressEvent, the validation step occurs AFTER backup step, meaning data is overwritten incorrectly
+        if self.enterPressed:
+            self.setCurrentCell(row + 1, column)
+            self.enterPressed = False
         #credit https://stackoverflow.com/questions/21280061/get-data-from-every-cell-from-a-qtableview
         model = self.model()
         self.data = []
@@ -234,6 +252,8 @@ class Table(QTableWidget):
             for column in range(model.columnCount()):
                 index = model.index(row, column)
                 self.data[row].append(str(model.data(index)))
+
+
 
 class Textarea(QTextEdit):
     def __init__(self, screen, content, x, y, w, h):

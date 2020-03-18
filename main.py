@@ -1,12 +1,12 @@
 import os
 import re
 from math import floor
-from threading import Thread
+from threading import Thread, active_count
 
 import googleapiclient.errors
 import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QComboBox, QDialog
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog
 
 from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table, Multidialog
 from cuter import app, screens, switch_screen
@@ -17,19 +17,27 @@ from veracross import get_class_json
 
 '''
 Todo:
-    - Format student dropdown for unfinished reports
-    - GUI so that user doesn't have to deal with weird text macros
-    - Use Sheets/Excel to CREATE spreadsheet
-    - Use Sheets API file selector
-    - Support for multi-paragraph reports
-    - Support for RTF (italics)
-    - Async spreadsheet loading (modal dialog & QThread)
-    - UI overhaul (it's friggin ugly)
-    - Veracross username & password as text field rather than login box
-    - updateTable needs an overhaul
-'''
-'''
-Bugs: None found atm
+    High:
+        - Overhaul classes so they can be edited in-program (load entire sheet in-program, use interface of Sheet Creator)
+        - Async spreadsheet loading (modal dialog & QThread)
+        - GUI so that user doesn't have to deal with weird text macros
+        - Use Sheets/Excel to CREATE spreadsheet
+        - UI overhaul (it's friggin ugly)
+
+    Medium:
+        - Format student dropdown for unfinished reports
+        - Veracross username & password as text field rather than login box
+        - Support for RTF (italics)
+        - Support for multi-paragraph reports
+    Low:
+        - Use Sheets API file selector
+        - updateTable needs an overhaul
+        - oldText/cell saving, updating; Enter key tab down kinda buggy (hackish fix rn by doing enter behavior in validation functions)
+
+Bugs: 
+    High:
+    Medium:
+    Low:
 '''
 
 excel_extensions = ["xlsx", "xlsm", "xltx", "xltm", "xlw"]
@@ -638,9 +646,8 @@ class TableBuilder:
         self.class_headers = ["First", "Last", "Gender", "Report"]
 
         self.add_dropdown = Dropdown("Builder", x=self.dropdown.x() + self.dropdown.width(), y = self.dropdown.y(), options=self.add_options)
-        # self.add_button = Button("Builder", "+", x=self.dropdown.x()+self.dropdown.width(), y=self.dropdown.y(), focusOnTab=False)
         self.remove_button = Button("Builder", "-", x=self.add_dropdown.x() + self.add_dropdown.width(), y=self.dropdown.y(), focusOnTab=False)
-        self.add_dialog = Multidialog("Builder", "Uwu", [{"name":"Class", "label":"Class", "type":"input"}, {"name":"Block", "label":"Block", "type":"input"}])
+        self.add_dialog = Multidialog("Builder", "Add Class", [{"name":"Class", "label":"Class", "type":"input"}, {"name":"Block", "label":"Block", "type":"input"}])
 
         self.veracross_button = Button("Builder", "Load from Veracross", x=screens["Builder"].width()/4, y=700)
         self.excel_button = Button("Builder", "Save Excel", x=self.veracross_button.x()+self.veracross_button.width(), y=self.veracross_button.y())
@@ -664,6 +671,7 @@ class TableBuilder:
                 if self.tables[i].data:
                     for j, row in enumerate(self.tables[i].data):
                         excel_sheet[tab].append(row)
+            excel_sheet.remove(excel_sheet[excel_sheet.sheetnames[0]]) #Remove default tab
             excel_sheet.save(file[0])
             prefs.update_pref("is_web", False)
             prefs.update_pref("report_sheet", file[0])
@@ -704,6 +712,7 @@ class TableBuilder:
                             self.options.append(sentences_name)
                             self.dropdown.addItem(sentences_name)
                             self.tables.append(Table("Builder", header=self.sentence_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=False))
+                            self.tables[-1].updateTable([[""] * 4] * 10)
                         self.options.append(tab_name)
                         self.dropdown.addItem(tab_name)
                         self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=True, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
@@ -724,13 +733,13 @@ def grade_cell_changed(item):
         col = item.column()
         row = item.row()
 
-        print(f"Edited: ({col}, {row}) | Value: {item.text()}")
+        # print(f"Edited: ({col}, {row}) | Value: {item.text()}")
         if grades_table.horizontalHeaderItem(col) is not None and grades_table.horizontalHeaderItem(col).text() == "Grade":
-            print(f'Old: {grades_table.oldText} | New: {item.text()}')
+            # print(f'Old: {grades_table.oldText} | New: {item.text()}')
             scheme = grades_table.item(row, col + 1)
             assignment = grades_table.item(row, col - 1)
             if scheme is not None and not GradeSet(scheme.text()).is_valid(item.text()):
-                print(f'{item.text()} is invalid! Reverting to {grades_table.oldText}')
+                # print(f'{item.text()} is invalid! Reverting to {grades_table.oldText}')
                 item.setText(grades_table.oldText)
             elif scheme is not None:
                 current_student.grades[assignment.text()]['grade'] = item.text()
@@ -738,8 +747,14 @@ def grade_cell_changed(item):
                 grades_thread = Thread(target=current_student.write_grades)
                 grades_thread.start()
             grades_table.oldText = item.text()
+        #If setCurrentCell is called in keyPressEvent, the validation step occurs AFTER backup step, meaning data is overwritten incorrectly
+        if grades_table.enterPressed:
+            grades_table.setCurrentCell(row + 1, col)
+            grades_table.enterPressed = False
+
     grades_table.resizeRowsToContents()
     grades_table.resizeColumnsToContents()
+
 
 grades_table.itemChanged.connect(grade_cell_changed)
 
@@ -914,14 +929,14 @@ def setup_sheet_from_dialog(report=None):
 if len(report_sheet) > 0:
     setup_existing()
 
-select_sheet_file_button = Button("Setup", "Select Sheet (File)", screens['Setup'].width() / 3, screens['Setup'].height() / 3, False)
-select_sheet_prompt_button = Button("Setup", "Select Sheet (URL)", select_sheet_file_button.x() + select_sheet_file_button.width(), screens['Setup'].height() / 3, False)
+load_sheet_file_button = Button("Setup", "Load Sheet (File)", screens['Setup'].width() / 3, screens['Setup'].height() / 3, False)
+load_sheet_url_button = Button("Setup", "Load Sheet (URL)", load_sheet_file_button.x() + load_sheet_file_button.width(), screens['Setup'].height() / 3, False)
 
-create_report_sheet_button = Button("Setup", "Create Reports Sheet", screens['Setup'].width() / 3, select_sheet_file_button.y() + select_sheet_file_button.height(), False)
+create_report_sheet_button = Button("Setup", "Create Reports Sheet", screens['Setup'].width() / 3, load_sheet_file_button.y() + load_sheet_file_button.height(), False)
 open_setup_from_builder_button = Button("Builder", "Back", 0, 0, False)
 
-select_sheet_file_button.clicked.connect(setup_sheet_from_file)
-select_sheet_prompt_button.clicked.connect(setup_sheet_from_dialog)
+load_sheet_file_button.clicked.connect(setup_sheet_from_file)
+load_sheet_url_button.clicked.connect(setup_sheet_from_dialog)
 create_report_sheet_button.clicked.connect(lambda: switch_screen("Builder"))
 open_setup_from_builder_button.clicked.connect(lambda: switch_screen("Setup"))
 
