@@ -142,7 +142,8 @@ class Dropdown(QComboBox):
         if self.isEditable():
             self.setInsertPolicy(QComboBox.InsertAtCurrent)
             self.editTextChanged.connect(self.modifyText)
-
+        #Good idea in theory, but...not in actuality, since I use like 0 layouts so nothing is adjusted
+        # self.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.show()
 
     def keyPressEvent(self, event) -> None:
@@ -225,6 +226,14 @@ class Table(QTableWidget):
                     item.setText(self.oldText)
             self.oldText = item.text()
 
+        #credit https://stackoverflow.com/questions/21280061/get-data-from-every-cell-from-a-qtableview
+        model = self.model()
+        self.data = []
+        for row in range(model.rowCount()):
+            self.data.append([])
+            for column in range(model.columnCount()):
+                index = model.index(row, column)
+                self.data[row].append(str(model.data(index)))
 
 class Textarea(QTextEdit):
     def __init__(self, screen, content, x, y, w, h):

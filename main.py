@@ -178,11 +178,15 @@ class Student:
             for i in range(len(self.grades)):
                 sheet[self.classroom][index_to_column(grades_column_index+i)+str(self.offset)] = grades[i] if not None else ""
             sheet.save(prefs.get_pref('report_sheet'))
+
     def get_pronouns(self):
         if self.gender:
             return Student.pronouns[self.gender]
         else:
             return Student.pronouns["T"]
+
+    def full_name(self):
+        return ((self.first_name if self.first_name else "") + " " + (self.last_name if self.last_name else "")).strip()
 
 def replace_generics(fmt):
     global student_dropdown
@@ -445,8 +449,7 @@ def fill_class_data(class_index=None):
         if prefs.get_pref('format_unfinished'):
             reformat_student_dropdown()
         else:
-            student_dropdown.addItems([student.first_name + " " + student.last_name for student in class_students])
-
+            student_dropdown.addItems([student.first_name + " " + student.last_name for student in class_students if student.first_name and student.last_name])
         if class_dropdown.history[-1].split("-")[0] != class_name.split("-")[0]:
             update_sentences()
         class_dropdown.history.append(class_name)
@@ -579,8 +582,15 @@ def send_report():
     global student_dropdown
 
     if len(class_students) > 0:
-        class_students[student_dropdown.currentIndex()].report = report_area.toPlainText()
-        submit_thread = Thread(target=class_students[student_dropdown.currentIndex()].submit_report)
+        idx = student_dropdown.currentIndex()
+        if not student_dropdown.count() == len(class_students):
+            dropdown_items = [student_dropdown.itemText(i).strip() for i in range(student_dropdown.count())]
+            for i, s in enumerate(class_students):
+                if dropdown_items[idx] == s.full_name():
+                    idx = i
+                    break
+        class_students[idx].report = report_area.toPlainText()
+        submit_thread = Thread(target=class_students[idx].submit_report)
         submit_thread.start()
 
     if prefs.get_pref('reformat_unfinished'):
@@ -620,7 +630,7 @@ class TableBuilder:
     def __init__(self, options=None, tables=None):
         self.options = options if options else []
         self.tables = tables if tables else []
-        self.dropdown = Dropdown("Builder", x=screens["Builder"].width()/2.25, y=0, options=self.options, editable=True)
+        self.dropdown = Dropdown("Builder", x=screens["Builder"].width()/2.25, y=0, options=self.options, editable=False)
         #Set of page options
         self.add_options = ["Add Page...", "Class", "Sentences", "Schemes", "Other"]
 
@@ -651,8 +661,9 @@ class TableBuilder:
             for i, tab in enumerate(self.options):
                 excel_sheet.create_sheet(title=tab)
                 excel_sheet[tab].append(self.tables[i].header)
-                for j, row in enumerate(self.tables[i].data):
-                    excel_sheet[tab].append(row)
+                if self.tables[i].data:
+                    for j, row in enumerate(self.tables[i].data):
+                        excel_sheet[tab].append(row)
             excel_sheet.save(file[0])
             prefs.update_pref("is_web", False)
             prefs.update_pref("report_sheet", file[0])
@@ -678,8 +689,6 @@ class TableBuilder:
         if len(self.tables) > 0:
             for t in self.tables: t.hide()
             self.tables[self.dropdown.currentIndex()].show()
-            print(self.tables[self.dropdown.currentIndex()].header)
-
 
     #naive add/remove
     def add_option(self, index):
@@ -691,8 +700,11 @@ class TableBuilder:
                     if len(class_name) > 0 and len(block_name) > 0:
                         tab_name = class_name+"-"+block_name
                         sentences_name = "Sentences " + class_name
-                        self.dropdown.addItem(sentences_name)
-                        self.tables.append(Table("Builder", header=self.sentence_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=False))
+                        if self.dropdown.findText(sentences_name) == -1:
+                            self.options.append(sentences_name)
+                            self.dropdown.addItem(sentences_name)
+                            self.tables.append(Table("Builder", header=self.sentence_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=False))
+                        self.options.append(tab_name)
                         self.dropdown.addItem(tab_name)
                         self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=True, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
                         self.tables[-1].updateTable([[""]*4]*10)
