@@ -199,7 +199,8 @@ class Student:
 def replace_generics(fmt):
     global student_dropdown
     global class_students
-    if len(class_students) > 0 and student_dropdown.count() > 0:
+    idx = student_index()
+    if idx is not False:
         fmt = make_lowercase_generics(fmt)
         current_student = class_students[student_index()]
         ps = current_student.get_pronouns()
@@ -588,23 +589,21 @@ def student_index():
     global class_students
     idx = student_dropdown.currentIndex()
     dropdown_items = [student_dropdown.itemText(i).strip() for i in range(student_dropdown.count())]
-    if not len(dropdown_items) == len(class_students):
-        if len(dropdown_items) > 0 and len(class_students) > 0:
+    if len(dropdown_items) > 0 and len(class_students) > 0:
+        if not len(dropdown_items) == len(class_students):
             for i, s in enumerate(class_students):
-                print(len(dropdown_items), len(class_students))
                 if dropdown_items[idx] == s.full_name():
                     return i
         else:
-            return False
-    return idx
-
+            return idx
+    return False
 
 def send_report():
     global class_students
     global student_dropdown
 
-    if len(class_students) > 0 and student_dropdown.count() > 0:
-        idx = student_index()
+    idx = student_index()
+    if idx is not False:
         class_students[idx].report = report_area.toPlainText()
         submit_thread = Thread(target=class_students[idx].submit_report)
         submit_thread.start()
@@ -621,7 +620,8 @@ def generate_report():
     global class_students
 
     report_area.setText("")
-    if len(class_students) > 0:
+    idx = student_index()
+    if idx is not False:
         for sentence in sentences:
             if sentence.checkbox.isChecked():
                 report_area.setText(report_area.toPlainText() + replace_generics(sentence.dropdown.currentText()) + " ")
@@ -780,7 +780,8 @@ def generate_report_from_grades():
     global class_dropdown
 
     report_area.setText("")
-    if len(class_students) > 0 and student_dropdown.count() > 0:
+    idx = student_index()
+    if idx is not False:
         current_student = class_students[student_index()]
         chosen_options = {}
         for elem in grade_rules:
@@ -806,8 +807,9 @@ def setup_grades_table():
     global student_dropdown
     global grades_table
 
-    if len(class_students) > 0 and class_dropdown.count() > 0:
-        current_student = class_students[student_dropdown.currentIndex()]
+    idx = student_index()
+    if idx is not False:
+        current_student = class_students[idx]
         grades_table.updateTable([[g, current_student.grades[g]['grade'], current_student.grades[g]['scheme']] for g in current_student.grades])
     else:
         grades_table.updateTable()
@@ -824,8 +826,8 @@ def update_student(index=None):
 def local_save_report():
     global class_students
     global student_dropdown
-
-    if len(class_students) > 0 and student_dropdown.count() > 0: class_students[student_index()].report = report_area.toPlainText()
+    idx = student_index()
+    if idx is not False: class_students[idx].report = report_area.toPlainText()
 
 first_run = True
 def setup():
