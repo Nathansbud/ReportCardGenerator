@@ -23,7 +23,6 @@ Todo:
         - GUI so that user doesn't have to deal with weird text macros
         - Use Sheets/Excel to CREATE spreadsheet
         - UI overhaul (it's friggin ugly)
-
     Medium:
         - Format student dropdown for unfinished reports
         - Veracross username & password as text field rather than login box
@@ -38,6 +37,10 @@ Bugs:
     High:
     Medium:
     Low:
+        - Removed columns aren't removed unless sandwiched
+        - Dropdown dialogs can occasionally be OK'd without option selected
+    Very Low:
+        - Sentence dropdowns occasionally aren't updated if removed (causing gap between dropdowns)
 '''
 
 excel_extensions = ["xlsx", "xlsm", "xltx", "xltm", "xlw"]
@@ -136,6 +139,10 @@ def index_to_column(idx):
     minor = chr(65 + idx % 26)
     return str(major + minor)
 
+def sentence_tab(s=None):
+    if not s: s=class_dropdown.currentText()
+    return "Sentences " + s.split("-")[0]
+
 class Student:
     pronouns = {
         "M": ["he", "his", "him", "his", "himself"],
@@ -169,7 +176,7 @@ class Student:
             report = self.report
 
         if prefs.get_pref('is_web'):
-            write_sheet(report_sheet, [[report]], "{}!{}".format(self.classroom, report_column + str(self.offset)))
+            write_sheet(report_sheet, [[report]], r="{}!{}".format(self.classroom, report_column + str(self.offset)))
         else:
             sheet[self.classroom][report_column + str(self.offset)] = report
             sheet.save(prefs.get_pref('report_sheet'))
@@ -180,7 +187,7 @@ class Student:
     def write_grades(self):
         global sheet
         if prefs.get_pref('is_web'):
-            write_sheet(report_sheet, [[g['grade'] for g in self.grades.values()]], "{}!{}:{}".format(self.classroom, grades_column + str(self.offset), index_to_column(grades_column_index + len(self.grades)) + str(self.offset)))
+            write_sheet(report_sheet, [[g['grade'] for g in self.grades.values()]], r="{}!{}:{}".format(self.classroom, grades_column + str(self.offset), index_to_column(grades_column_index + len(self.grades)) + str(self.offset)))
         else:
             grades = [g['grade'] for g in self.grades.values()]
             for i in range(len(self.grades)):
@@ -316,26 +323,31 @@ class SentenceGroup:
             SentenceGroup.dialog.setLabelText("Choose an item to remove:")
 
             if SentenceGroup.dialog.exec():
-                self.dropdown.options.remove(SentenceGroup.dialog.textValue())
-                self.dropdown.clear()
-                self.dropdown.addItems([replace_generics(option) for option in self.dropdown.options])
-                if self.dropdown.count() == 0:
-                    self.checkbox.setChecked(False)
-                sentence_thread = Thread(target=self.write_sentences)
-                sentence_thread.start()
+                if SentenceGroup.dialog.textValue() in self.dropdown.options:
+                    self.dropdown.options.remove(SentenceGroup.dialog.textValue())
+                    self.dropdown.clear()
+                    self.dropdown.addItems([replace_generics(option) for option in self.dropdown.options])
+                    if self.dropdown.count() == 0:
+                        self.checkbox.setChecked(False)
+                    sentence_thread = Thread(target=self.write_sentences)
+                    sentence_thread.start()
+                else: print("Tried to invalid remove!")
         else:
             global sentences
             sentences.remove(self)
             self.delete()
+
 
             for i in range(0, len(sentences)):
                 if sentences[i].index > self.index:
                     sentences[i].index -= 1
                     sentences[i].shift(sentences[i].x, sentences[i].y - 25)
                     sentences[i].label.setText("S{}:".format(i + 1))
+
             self.manual_delete = True
             sentence_thread = Thread(target=self.write_sentences)
             sentence_thread.start()
+
 
     def editOption(self):
         if self.dropdown.count() > 0:
@@ -364,24 +376,26 @@ class SentenceGroup:
         global all_tab_pairs
 
         col = index_to_column(self.index)
+        sentence_tab = "Sentences " + class_dropdown.currentText().split("-")[0] #unsure why, sentence_tab() not working?
+        if prefs.get_pref("is_web") and not sentence_tab in all_tab_pairs:
+            raise IndexError(f"Sentence tab {sentence_tab} not in all tab pairs!")
+
         if self.manual_delete:
             if prefs.get_pref('is_web'):
-                tab_id = [tab[1] for tab in all_tab_pairs if tab[0] == "Sentences " + class_dropdown.currentText().split("-")[0]]
-                write_sheet(report_sheet, "", mode="COLUMNS", remove=[self.index, self.index+1], tab_id=tab_id[0])
+                write_sheet(report_sheet, "", mode="COLUMNS", tab_id=all_tab_pairs[sentence_tab]['sheetId'], option={"operation":"remove", "start":self.index, "end":self.index+1})
+                all_tab_pairs[sentence_tab]['gridProperties']['columnCount'] -= 1
             else:
-                sheet["Sentences " + class_dropdown.currentText().split("-")[0]].delete_cols(self.index+1)
+                sheet[sentence_tab].delete_cols(self.index+1)
                 sheet.save(prefs.get_pref('report_sheet'))
         else:
             buffer_list = ["", "", "", "", ""] #account for the fact that in removing, there are floating cells not part of options; have a 5-long buffer to manage that
             write_list = self.dropdown.options + buffer_list
             if prefs.get_pref('is_web'):
-                write_sheet(report_sheet, [write_list], "Sentences {}!{}2:{}".format(class_dropdown.currentText().split("-")[0],
-                                                                                     col, col + str(len(write_list) + 1)), "COLUMNS")
+                write_sheet(report_sheet, [write_list], mode="COLUMNS", r="{}!{}2:{}".format(sentence_tab, col, col + str(len(write_list) + 1)))
             else:
                 for i in range(0, len(write_list)):
-                    sheet["Sentences " + class_dropdown.currentText().split("-")[0]][col+str(i+2)] = write_list[i]
+                    sheet[sentence_tab][col+str(i+2)] = write_list[i]
                     sheet.save(prefs.get_pref('report_sheet'))
-
 
 def reformat_student_dropdown():
     global student_dropdown
@@ -495,9 +509,9 @@ def update_sentences():
                 sentences = []
                 print("Called update sentences...")
                 if prefs.get_pref("is_web"):
-                    current_sentences = get_sheet(report_sheet, "{}!A1:Z1000".format("Sentences " + str(class_dropdown.currentText().split("-")[0])), "COLUMNS").get('values')
+                    current_sentences = get_sheet(report_sheet, "{}!A1:Z1000".format(sentence_tab()), "COLUMNS").get('values')
                 else:
-                    st = sheet["Sentences " + str(class_dropdown.currentText().split("-")[0])]
+                    st = sheet[sentence_tab()]
                     current_sentences = [list(filter(None, col)) for col in st.iter_cols(values_only=True)]
                 count = 0
                 ro = 0
@@ -515,9 +529,14 @@ def update_sentences():
 
 def add_sentence():
     global sentences
+    global all_tab_pairs
     sentences.append(
-        SentenceGroup(f"S{sentences.__len__()+1}:", 50, 125 + 25 * sentences.__len__(), [], sentences.__len__())
+        SentenceGroup(f"S{sentences.__len__()+1}:", 50, 125 + 25 * (sentences.__len__()+1), [], (sentences.__len__()))
     )
+    cc = all_tab_pairs[sentence_tab()]['gridProperties']['columnCount']
+    if cc < len(sentences):
+        Thread(target=lambda: write_sheet(report_sheet, [], mode="COLUMNS", tab_id=all_tab_pairs[sentence_tab()]['sheetId'], option={"operation":"insert", "start":cc, "end":cc+1})).start()
+        all_tab_pairs[sentence_tab()]['gridProperties']['columnCount']+=1
     update_tab_order()
 
 class Preset:
@@ -843,8 +862,9 @@ def setup():
     global first_run
 
     if prefs.get_pref('is_web'):
-        all_tabs_pairs = [(tab['properties']['title'], tab['properties']['sheetId']) for tab in sheet.get('sheets')]
-        all_tabs = [name[0] for name in all_tabs_pairs]
+        print(sheet.get('sheets'))
+        all_tab_pairs = {tab['properties']['title']:tab['properties'] for tab in sheet.get('sheets')}
+        all_tabs = [tab for tab in all_tab_pairs]
     else:
         all_tabs = sheet.sheetnames
 

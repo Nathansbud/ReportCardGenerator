@@ -38,28 +38,47 @@ def get_sheet(sheet, r='', mode='ROWS'):
         return service.spreadsheets().values().get(spreadsheetId=sheet, range=r, majorDimension=mode).execute()
     return service.spreadsheets().get(spreadsheetId=sheet).execute()
 
-def write_sheet(sheet, values, r='', mode="ROWS", remove=None, tab_id=None):
+def write_sheet(sheet, values, r='', mode="ROWS", tab_id=None, option=None):
+    if option is None: option={"operation":"write"}
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
     sheets_token = make_token(scope=SCOPES, cred_name="sheets")
     service = build('sheets', 'v4', credentials=sheets_token)
-    if remove is None:
-        service.spreadsheets().values().update(spreadsheetId=sheet, range=r, valueInputOption="RAW", body={
-            'values':values,
-            'majorDimension':mode
-        }).execute()
-    else:
-        service.spreadsheets().batchUpdate(spreadsheetId=sheet, body=
-        {"requests": {
-                "deleteRange": {
-                    "range": {
-                        "sheetId": tab_id,
-                        "startColumnIndex": remove[0],
-                        "endColumnIndex": remove[1]
-                    },
-                    "shiftDimension": "COLUMNS"
-                }
-            }
-        }).execute()
+    if 'operation' in option:
+        if option['operation'] == "write":
+            service.spreadsheets().values().update(spreadsheetId=sheet, range=r, valueInputOption="RAW", body={
+                'values': values,
+                'majorDimension': mode
+            }).execute(),
+        elif option['operation'] == "remove":
+            if 'start' in option and 'end' in option:
+                service.spreadsheets().batchUpdate(spreadsheetId=sheet, body={"requests": {
+                    "deleteRange": {
+                        "range": {
+                            "sheetId": tab_id,
+                            "startColumnIndex": option['start'],
+                            "endColumnIndex": option['end']
+                        },
+                        "shiftDimension": "COLUMNS"
+                    }
+                }}).execute()
+        elif option['operation'] == "insert":
+            if 'start' in option and 'end' in option:
+                service.spreadsheets().batchUpdate(spreadsheetId=sheet, body={"requests":{
+                        "insertDimension":{
+                            "range":{
+                                "sheetId":tab_id,
+                                "dimension":mode,
+                                "startIndex":option['start'],
+                                "endIndex":option['end']
+                            },
+                            "inheritFromBefore": True if option['start'] > 0 else False
+                        },
+                    }}).execute()
+        # if option['operation'] == "insert":
+        #     service.spreadsheets().values().append(spreadsheetId=sheet, range=r, valueInputOption="RAW", body={
+        #         'values': values,
+        #         'majorDimension': mode
+        #     }).execute(),
 
 def make_sheet(title=None):
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
