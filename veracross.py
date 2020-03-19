@@ -1,20 +1,27 @@
 from selenium import webdriver
+from selenium.common.exceptions import *
 import os
 import json
 
-with open(os.path.join(os.path.dirname(__file__), "credentials", "veracross.json"), "r+") as jf: veracross = json.load(jf)
-def get_class_json(vc_link="https://accounts.veracross.eu/asb/portals/login"):
+# with open(os.path.join(os.path.dirname(__file__), "credentials", "veracross.json"), "r+") as jf: veracross = json.load(jf)
+def get_class_json(vc_link="https://accounts.veracross.eu/asb/portals/login", username="", password=""):
     options = webdriver.ChromeOptions()
     options.add_argument("headless")
     browser = webdriver.Chrome(options=options)
 
     browser.get(vc_link)
     #Login
-    browser.find_element_by_id("username").send_keys(veracross['username'])
-    browser.find_element_by_id("password").send_keys(veracross['password'])
+    browser.find_element_by_id("username").send_keys(username)
+    browser.find_element_by_id("password").send_keys(password)
     browser.find_element_by_id("recaptcha").click()
     browser.implicitly_wait(10)
     #Get Classes
+    try:
+        if browser.find_element_by_class_name("warning"):
+            return False
+    except NoSuchElementException:
+        pass
+
     class_elements = browser.find_elements_by_class_name("class-status-active")
     classes = {}
     for c in class_elements:

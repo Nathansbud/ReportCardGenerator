@@ -199,9 +199,9 @@ class Student:
 def replace_generics(fmt):
     global student_dropdown
     global class_students
-    if len(class_students) > 0:
+    if len(class_students) > 0 and student_dropdown.count() > 0:
         fmt = make_lowercase_generics(fmt)
-        current_student = class_students[student_dropdown.currentIndex()]
+        current_student = class_students[student_index()]
         ps = current_student.get_pronouns()
 
         replace_set = {
@@ -253,9 +253,7 @@ def make_lowercase_generics(fmt):
             substr = substr[matched.end():]
 
     substr = fmt
-
-    for match in matches:
-        substr = substr[0:match[0]] + fmt[match[0]:match[1]].lower() + fmt[match[1]:]
+    for match in matches: substr = substr[0:match[0]] + fmt[match[0]:match[1]].lower() + fmt[match[1]:]
     return substr
 
 class SentenceGroup:
@@ -313,7 +311,7 @@ class SentenceGroup:
     def removeOption(self):
         if self.dropdown.count() > 0:
             SentenceGroup.dialog.setComboBoxItems(self.dropdown.options)
-            SentenceGroup.dialog.setWindowTitle("Remove Item")
+            SentenceGroup.dialog.setWindowTitle("Remove Option")
             SentenceGroup.dialog.setLabelText("Choose an item to remove:")
 
             if SentenceGroup.dialog.exec():
@@ -344,7 +342,7 @@ class SentenceGroup:
             SentenceGroup.dialog.setWindowTitle("Edit Item")
             SentenceGroup.dialog.setLabelText("Choose an item to edit:")
             if SentenceGroup.dialog.exec():
-                replace, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Replacement Option", "Replace '{}' With:".format(SentenceGroup.dialog.textValue()), QLineEdit.Normal, SentenceGroup.dialog.textValue())
+                replace, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Edit Option", "Replace '{}' with:".format(SentenceGroup.dialog.textValue()), QLineEdit.Normal, SentenceGroup.dialog.textValue())
                 if ok and len(replace) > 0:
                     index = self.dropdown.options.index(SentenceGroup.dialog.textValue())
                     self.dropdown.options[index] = replace
@@ -442,7 +440,7 @@ def fill_class_data(class_index=None):
                         else: grade_list[i] = student[4:][i]
                 class_students.append(
                     Student(
-                        student[0],  # First Name
+                        student[0] if len(student) >= 1 else "",  # First Name
                         student[1] if len(student) >= 2 else "",  # Last Name
                         student[2] if len(student) >= 3 else "",  # Gender
                         student[3] if len(student) >= 4 else "",  # Report
@@ -580,23 +578,33 @@ def update_report(index=None):
     if index:
         report_area.setText(class_students[index].report)
     elif student_dropdown.count() > 0:
-        report_area.setText(class_students[student_dropdown.currentIndex()].report)
+        report_area.setText(class_students[student_index()].report)
     else:
         report_area.setText("")
     report_area.repaint()
+
+def student_index():
+    global student_dropdown
+    global class_students
+    idx = student_dropdown.currentIndex()
+    dropdown_items = [student_dropdown.itemText(i).strip() for i in range(student_dropdown.count())]
+    if not len(dropdown_items) == len(class_students):
+        if len(dropdown_items) > 0 and len(class_students) > 0:
+            for i, s in enumerate(class_students):
+                print(len(dropdown_items), len(class_students))
+                if dropdown_items[idx] == s.full_name():
+                    return i
+        else:
+            return False
+    return idx
+
 
 def send_report():
     global class_students
     global student_dropdown
 
-    if len(class_students) > 0:
-        idx = student_dropdown.currentIndex()
-        if not student_dropdown.count() == len(class_students):
-            dropdown_items = [student_dropdown.itemText(i).strip() for i in range(student_dropdown.count())]
-            for i, s in enumerate(class_students):
-                if dropdown_items[idx] == s.full_name():
-                    idx = i
-                    break
+    if len(class_students) > 0 and student_dropdown.count() > 0:
+        idx = student_index()
         class_students[idx].report = report_area.toPlainText()
         submit_thread = Thread(target=class_students[idx].submit_report)
         submit_thread.start()
@@ -627,7 +635,7 @@ def generate_report_from_preset():
     global preset_dropdown
 
     report_area.setText("")
-    if preset_dropdown.count() > 0:
+    if preset_dropdown.count() > 0 and student_dropdown.count() > 0:
         for elem in preset_list[preset_dropdown.currentText()]:
             report_area.setText(report_area.toPlainText() + replace_generics(elem.text) + " ")
     report_area.repaint()
@@ -654,9 +662,10 @@ class TableBuilder:
         self.sheets_button = Button("Builder", "Save Sheets", x=self.excel_button.x()+self.excel_button.width(), y=self.excel_button.y())
         self.dropdown.currentIndexChanged.connect(self.change_class)
 
-
         self.excel_button.clicked.connect(self.create_excel_sheet)
         self.veracross_button.clicked.connect(self.generate_from_veracross)
+        self.veracross_login_dialog = Multidialog("Builder", "Input Login", [{"name":"Username", "label":"Username", "type":"input"},
+                                                                             {"name":"Password", "label":"Password", "type":"input", "settings":{"mode":"password"}}])
         self.add_dropdown.currentIndexChanged.connect(self.add_option)
         # self.remove_button.clicked.connect(self.remove_option)
 
@@ -679,19 +688,26 @@ class TableBuilder:
             setup_existing()
 
     def generate_from_veracross(self):
-        class_json = get_class_json()
-        self.dropdown.clear()
-        self.options = []
-        for t in self.tables: t.deleteLater()
-        self.tables = []
-        for c in class_json:
-            class_name = class_json[c]['name']
-            student_set = [[s['preferred_name'], s['last_name'], s['gender'], ""] for s in class_json[c]['students']]
-            self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=False, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
-            self.tables[-1].updateTable(student_set)
-            self.options.append(class_name)
-        self.dropdown.addItems(self.options)
-        self.tables[-1].show()
+        if self.veracross_login_dialog.exec():
+            username = self.veracross_login_dialog.elements['Username']['object'].text().strip()
+            password = self.veracross_login_dialog.elements['Password']['object'].text()
+            if len(username) > 0 and len(password) > 0:
+                class_json = get_class_json(username=username, password=password)
+                if not class_json:
+                    print("Invalid login!", username, password)
+                    return
+                self.dropdown.clear()
+                self.options = []
+                for t in self.tables: t.deleteLater()
+                self.tables = []
+                for c in class_json:
+                    class_name = class_json[c]['name']
+                    student_set = [[s['preferred_name'], s['last_name'], s['gender'], ""] for s in class_json[c]['students']]
+                    self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=False, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
+                    self.tables[-1].updateTable(student_set)
+                    self.options.append(class_name)
+                self.dropdown.addItems(self.options)
+                self.tables[-1].show()
 
     def change_class(self):
         if len(self.tables) > 0:
@@ -729,7 +745,7 @@ def grade_cell_changed(item):
 
     if grades_table.oldCell != (item.row(), item.column()): grades_table.oldText = ""
     if class_students is not None and student_dropdown.count() > 0:
-        current_student = class_students[student_dropdown.currentIndex()]
+        current_student = class_students[student_index()]
         col = item.column()
         row = item.row()
 
@@ -764,8 +780,8 @@ def generate_report_from_grades():
     global class_dropdown
 
     report_area.setText("")
-    if len(class_students) > 0:
-        current_student = class_students[student_dropdown.currentIndex()]
+    if len(class_students) > 0 and student_dropdown.count() > 0:
+        current_student = class_students[student_index()]
         chosen_options = {}
         for elem in grade_rules:
             tk = GradeSet.tokenize(elem.ruleset)
@@ -790,7 +806,7 @@ def setup_grades_table():
     global student_dropdown
     global grades_table
 
-    if len(class_students) > 0:
+    if len(class_students) > 0 and class_dropdown.count() > 0:
         current_student = class_students[student_dropdown.currentIndex()]
         grades_table.updateTable([[g, current_student.grades[g]['grade'], current_student.grades[g]['scheme']] for g in current_student.grades])
     else:
@@ -809,8 +825,7 @@ def local_save_report():
     global class_students
     global student_dropdown
 
-    if class_students:
-        class_students[student_dropdown.currentIndex()].report = report_area.toPlainText()
+    if len(class_students) > 0 and student_dropdown.count() > 0: class_students[student_index()].report = report_area.toPlainText()
 
 first_run = True
 def setup():

@@ -39,6 +39,7 @@ class Window(QWidget):
         if shown:
             self.show()
 
+
     def setUI(self, bg_color=None, txt_color=None):
         palette = self.palette()
         if bg_color:
@@ -142,8 +143,6 @@ class Dropdown(QComboBox):
         if self.isEditable():
             self.setInsertPolicy(QComboBox.InsertAtCurrent)
             self.editTextChanged.connect(self.modifyText)
-        #Good idea in theory, but...not in actuality, since I use like 0 layouts so nothing is adjusted
-        # self.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.show()
 
     def keyPressEvent(self, event) -> None:
@@ -353,20 +352,32 @@ class Multidialog(QDialog):
         self.first_launch = True
         layout = QFormLayout()
         for f in self.form_set:
-            if 'name' in f and 'label' in f and 'type' in f:
-                self.elements[f['name']] = {'label':f['label'], 'type':f['type'], 'object':self.get_element(f['type'])}
-                if 'options' in f:
-                    self.elements[f['name']]['options'] = f['options']
-                    if self.elements[f['type']] == 'dropdown': f['object'].addItems(f['options'])
+            if not 'name' in f: continue
+            else:
+                self.elements[f['name']] = {k:f[k] for k in f}
+                self.elements[f['name']]['object'] = self.get_element(f['type'],
+                                                                      settings=f['settings'] if 'settings' in f else None,
+                                                                      data=f['data'] if 'data' in f else None)
             layout.addRow(f['label'], self.elements[f['name']]['object'])
         self.group_box.setLayout(layout)
         self.main_layout.addWidget(self.group_box)
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
-    def get_element(self, k):
-        if k.lower() == "input": return QLineEdit()
-        elif k.lower() == "dropdown": return QComboBox()
+    def get_element(self, etype, settings, data):
+        if etype.lower() == "input":
+            le = QLineEdit()
+            if data and isinstance(data, str): le.setText(data)
+            if settings:
+                if "mode" in settings:
+                    if settings["mode"] == "password": le.setEchoMode(QLineEdit.Password)
+            return le
+        elif etype.lower() == "dropdown":
+            cb = QComboBox()
+            if data:
+                if isinstance(data, list): cb.addItems(data)
+                elif isinstance(data, str): cb.addItem(data)
+            return QComboBox()
 
     def refresh(self):
         for w in self.group_box.children():
