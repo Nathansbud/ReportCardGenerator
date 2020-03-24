@@ -4,6 +4,7 @@ from math import floor
 from threading import Thread, active_count
 
 import googleapiclient.errors
+import httplib2
 import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog
@@ -14,6 +15,7 @@ from grades import GradeSet, load_grades
 from preferences import prefs
 from sheets import get_sheet, write_sheet
 from veracross import get_class_json
+from enum import Enum
 
 '''
 Todo:
@@ -32,6 +34,7 @@ Todo:
         - Use Sheets API file selector
         - updateTable needs an overhaul
         - oldText/cell saving, updating; Enter key tab down kinda buggy (hackish fix rn by doing enter behavior in validation functions)
+        - Rework editOption to use Multidialog
 
 Bugs: 
     High:
@@ -674,7 +677,7 @@ class TableBuilder:
 
         self.add_dropdown = Dropdown("Builder", x=self.dropdown.x() + self.dropdown.width(), y = self.dropdown.y(), options=self.add_options)
         self.remove_button = Button("Builder", "-", x=self.add_dropdown.x() + self.add_dropdown.width(), y=self.dropdown.y(), focusOnTab=False)
-        self.add_dialog = Multidialog("Builder", "Add Class", [{"name":"Class", "label":"Class", "type":"input"}, {"name":"Block", "label":"Block", "type":"input"}])
+        self.add_class_dialog = Multidialog("Builder", "Add Class", [{"name":"Class", "label":"Class", "type":"input"}, {"name":"Block", "label":"Block", "type":"input"}])
 
         self.veracross_button = Button("Builder", "Load from Veracross", x=screens["Builder"].width()/4, y=700)
         self.excel_button = Button("Builder", "Save Excel", x=self.veracross_button.x()+self.veracross_button.width(), y=self.veracross_button.y())
@@ -737,24 +740,32 @@ class TableBuilder:
     def add_option(self, index):
         if index != 0:
             if self.add_dropdown.currentText() == "Class":
-                if self.add_dialog.exec():
-                    class_name = self.add_dialog.elements['Class']['object'].text().replace("-", " ").strip()
-                    block_name = self.add_dialog.elements['Block']['object'].text().replace("-", " ").strip()
+                if self.add_class_dialog.exec():
+                    class_name = self.add_class_dialog.elements['Class']['object'].text().replace("-", " ").strip()
+                    block_name = self.add_class_dialog.elements['Block']['object'].text().replace("-", " ").strip()
                     if len(class_name) > 0 and len(block_name) > 0:
                         tab_name = class_name+"-"+block_name
                         sentences_name = "Sentences " + class_name
-                        if self.dropdown.findText(sentences_name) == -1:
-                            self.options.append(sentences_name)
-                            self.dropdown.addItem(sentences_name)
-                            self.tables.append(Table("Builder", header=self.sentence_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=False))
-                            self.tables[-1].updateTable([[""] * 4] * 10)
+                        self.add_sentence_tab(sentences_name)
                         self.options.append(tab_name)
                         self.dropdown.addItem(tab_name)
                         self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=True, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
                         self.tables[-1].updateTable([[""]*4]*10)
                         self.dropdown.setCurrentIndex(self.dropdown.count() - 1)
-                    self.add_dialog.refresh()
+                    self.add_class_dialog.refresh()
+            if self.add_dropdown.currentText() == "Sentences":
+                course_name, ok = QInputDialog(screens["Builder"]).getText(screens["Builder"], "Add Sentence Tab", "Course Name:", QLineEdit.Normal, "")
+                if ok: self.add_sentence_tab("Sentences " + course_name.replace("-", ""), True)
+
         self.add_dropdown.setCurrentIndex(0)
+
+    def add_sentence_tab(self, sn, show=False):
+        if len(sn) > 0 and self.dropdown.findText(sn) == -1:
+            self.options.append(sn)
+            self.dropdown.addItem(sn)
+            self.tables.append(Table("Builder", header=self.sentence_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=show))
+            self.tables[-1].updateTable([[""] * 4] * 10)
+            if show: self.dropdown.setCurrentIndex(self.dropdown.count() - 1)
 
 table_builder = TableBuilder()
 
@@ -906,12 +917,26 @@ def setup_sheet_from_file():
 
     file = file_select("Excel Sheet", excel_extensions)
     if file:
-        prefs.update_pref("is_web", False)
-        prefs.update_pref("report_sheet", file)
-        report_sheet = prefs.get_pref("report_sheet")
-        sheet = openpyxl.load_workbook(file)
-        setup()
+        try:
+            sheet = openpyxl.load_workbook(file)
+            prefs.update_pref("is_web", False)
+            prefs.update_pref("report_sheet", file)
+            report_sheet = prefs.get_pref("report_sheet")
+            setup()
+        except openpyxl.utils.exceptions.InvalidFileException:
+            return StatusCode.INVALID_PATH
 
+class StatusCode(Enum):
+    NONE = (0, "")
+    SUCCESS = (1, "Success!")
+    INVALID_PATH = (2, "Invalid filepath!")
+    INVALID_URL = (3, "Invalid path URL!")
+    INVALID_ID = (4, "Invalid path ID!")
+    INTERNET_FAILURE = (5, "No internet connection!")
+
+    def __init__(self, code, text):
+        self.code = code
+        self.text = text
 
 def validate_sheet(report):
     global report_sheet
@@ -923,14 +948,14 @@ def validate_sheet(report):
             prefs.update_pref("report_sheet", report)
             return True, workbook
         except openpyxl.utils.exceptions.InvalidFileException:
-            return False, "Invalid Excel File! Input Spreadsheet Link/Filepath:"
+            return False, StatusCode.INVALID_PATH
     elif not os.path.isfile(report):
         check_is = ["d", "https:", "spreadsheets", "http:", "docs.google.com", '']
         check_starts = ["edit#"]
 
         report = [part for part in report.split('/') if not part in check_is and not part.startswith(*check_starts)]
         if len(report) != 1:
-            return False, "Couldn't isolate sheet ID!"
+            return False, StatusCode.INVALID_ID
         else:
             try:
                 sheet_data = get_sheet(report[0])
@@ -939,9 +964,11 @@ def validate_sheet(report):
                 prefs.update_pref("is_web", True)
                 return True, sheet_data
             except googleapiclient.errors.HttpError:
-                return False, "Report Link Failure!"
+                return False, StatusCode.INVALID_URL
+            except httplib2.ServerNotFoundError:
+                return False, StatusCode.INTERNET_FAILURE
     else:
-        return False, "File is not Excel sheet!"
+        return False, StatusCode.INVALID_PATH
 
 
 def setup_sheet_from_dialog(report=None):
@@ -949,12 +976,11 @@ def setup_sheet_from_dialog(report=None):
     global sheet
 
     prompt_text = "Input Spreadsheet Link/Filepath:"
-    response = ""
+    response = StatusCode.NONE
     valid = False
     while not valid:
-        ask_for = response
         if not report:
-            report, ok = QInputDialog(screens["Reports"]).getText(screens["Reports"], "Report Sheet", prompt_text + ask_for, QLineEdit.Normal, "")
+            report, ok = QInputDialog(screens["Reports"]).getText(screens["Reports"], "Report Sheet", (response.text+" "+prompt_text).strip(), QLineEdit.Normal, "")
             if not ok:
                 sheet = False
                 return
@@ -962,9 +988,6 @@ def setup_sheet_from_dialog(report=None):
         report = None
     sheet = response
     setup()
-
-if len(report_sheet) > 0:
-    setup_existing()
 
 load_sheet_file_button = Button("Setup", "Load Sheet (File)", screens['Setup'].width() / 3, screens['Setup'].height() / 3, False)
 load_sheet_url_button = Button("Setup", "Load Sheet (URL)", load_sheet_file_button.x() + load_sheet_file_button.width(), screens['Setup'].height() / 3, False)
@@ -988,6 +1011,7 @@ reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tab
 add_sentence_button.clicked.connect(add_sentence)
 
 if __name__ == "__main__":
+    if len(report_sheet) > 0: setup_existing()
     app.exec()
 
 
