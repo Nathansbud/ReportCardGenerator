@@ -10,7 +10,7 @@ from PyQt5.QtGui import QColor, QStandardItem
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog
 
 from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table, Multidialog
-from cuter import app, screens, switch_screen
+from cuter import app, window
 from grades import GradeSet, load_grades
 from preferences import prefs
 from sheets import get_sheet, write_sheet
@@ -35,6 +35,7 @@ Todo:
         - updateTable needs an overhaul
         - oldText/cell saving, updating; Enter key tab down kinda buggy (hackish fix rn by doing enter behavior in validation functions)
         - Rework editOption to use Multidialog
+        - setUI and all graphical stuff...is a damn mess
 
 Bugs: 
     High:
@@ -83,7 +84,7 @@ sentences = []  # Should be populated with SentenceGroup elements
 grade_scheme_tabs = []
 grade_rules = []
 
-class_label = Label("Reports", "Class: ", screens['Reports'].width() / 2.5, 15)
+class_label = Label("Reports", "Class: ", window.width() / 2.5, 15)
 class_dropdown = Dropdown("Reports", class_label.x() + class_label.width(), class_label.y(), [tab for tab in class_tabs])
 
 student_label = Label("Reports", "Name: ", 50, 75)
@@ -95,39 +96,39 @@ preset_dropdown = Dropdown("Reports", preset_button.x() + preset_button.width(),
 grade_button = Button("Reports", "Generate From Grades", preset_dropdown.x()+preset_dropdown.width(), preset_dropdown.y(), False)
 reload_grade_schemes_button = Button("Reports", "Reload Grade Rules", grade_button.x()+grade_button.width(), preset_dropdown.y(), False)
 
-generate_button = Button("Reports", "Generate", screens['Reports'].width()/2 - 20, 410)
-report_area = Textarea("Reports", "", 0, 450, screens['Reports'].width(), 250)
-submit_button = Button("Reports", "Submit", screens['Reports'].width()/2 - 20, 700)
+generate_button = Button("Reports", "Generate", window.width()/2 - 20, 410)
+report_area = Textarea("Reports", "", 0, 450, window.width(), 250)
+submit_button = Button("Reports", "Submit", window.width()/2 - 20, 700)
 
 color_selector = ColorSelector("Reports")
 
-open_grades_from_reports_button = Button("Reports", "Open Grades", screens['Reports'].width(), 0, False)
-open_grades_from_reports_button.move(screens['Reports'].width() - open_grades_from_reports_button.width(), 0)
+open_grades_from_reports_button = Button("Reports", "Open Grades", window.width(), 0, False)
+open_grades_from_reports_button.move(window.width() - open_grades_from_reports_button.width(), 0)
 
 open_preferences_from_reports_button = Button("Reports", "Open Preferences", reload_grade_schemes_button.x() + reload_grade_schemes_button.width(), preset_dropdown.y(), False)
 open_setup_from_report_button = Button("Reports", "Open Sheet Setup", open_preferences_from_reports_button.x(), open_preferences_from_reports_button.y()+open_preferences_from_reports_button.height(), False, shown=False)
 
-open_reports_from_preferences_button = Button("Preferences", "Open Reports", screens['Preferences'].width() - 50, 0, False)
-open_reports_from_preferences_button.move(screens['Preferences'].width() - open_reports_from_preferences_button.width(), 0)
+open_reports_from_preferences_button = Button("Preferences", "Open Reports", window.width() - 50, 0, False)
+open_reports_from_preferences_button.move(window.width() - open_reports_from_preferences_button.width(), 0)
 
-open_reports_from_grades_button = Button("Grades", "Open Reports", screens['Grades'].width() - 50, 0, False)
-open_reports_from_grades_button.move(screens['Grades'].width() - open_reports_from_preferences_button.width(), 0)
+open_reports_from_grades_button = Button("Grades", "Open Reports", window.width() - 50, 0, False)
+open_reports_from_grades_button.move(window.width() - open_reports_from_preferences_button.width(), 0)
 
 open_reports_from_setup_button = Button("Setup", "Back", 0, 0, False, shown=False)
 
-open_grades_from_reports_button.clicked.connect(lambda: switch_screen("Grades"))
-open_preferences_from_reports_button.clicked.connect(lambda: switch_screen("Preferences"))
-open_setup_from_report_button.clicked.connect(lambda: switch_screen("Setup"))
+open_grades_from_reports_button.clicked.connect(lambda: window.switchScreen("Grades"))
+open_preferences_from_reports_button.clicked.connect(lambda: window.switchScreen("Preferences"))
+open_setup_from_report_button.clicked.connect(lambda: window.switchScreen("Setup"))
 
-open_reports_from_grades_button.clicked.connect(lambda: switch_screen("Reports"))
-open_reports_from_preferences_button.clicked.connect(lambda: switch_screen("Reports"))
-open_reports_from_setup_button.clicked.connect(lambda: switch_screen("Reports"))
+open_reports_from_grades_button.clicked.connect(lambda: window.switchScreen("Reports"))
+open_reports_from_preferences_button.clicked.connect(lambda: window.switchScreen("Reports"))
+open_reports_from_setup_button.clicked.connect(lambda: window.switchScreen("Reports"))
 
 reload_button = Button("Reports", "Reload", open_grades_from_reports_button.x(), open_grades_from_reports_button.y() + open_grades_from_reports_button.height(), False)
 
-background_color_button = Button("Preferences", "BG Color", screens['Preferences'].width() - 150, open_reports_from_preferences_button.y() + open_reports_from_preferences_button.height(), False)
-text_color_button = Button("Preferences", "Text Color", screens['Preferences'].width() - 150, background_color_button.y() + background_color_button.height(), False)
-label_color_button = Button("Preferences", "Label Color", screens['Preferences'].width() - 150, text_color_button.y() + text_color_button.height(), False)
+background_color_button = Button("Preferences", "BG Color", window.width() - 150, open_reports_from_preferences_button.y() + open_reports_from_preferences_button.height(), False)
+text_color_button = Button("Preferences", "Text Color", window.width() - 150, background_color_button.y() + background_color_button.height(), False)
+label_color_button = Button("Preferences", "Label Color", window.width() - 150, text_color_button.y() + text_color_button.height(), False)
 
 background_color_button.clicked.connect(lambda: color_selector.updateColor("Background Color", "bg_color"))
 text_color_button.clicked.connect(lambda: color_selector.updateColor("Text Color", "txt_color"))
@@ -268,7 +269,7 @@ def make_lowercase_generics(fmt):
     return substr
 
 class SentenceGroup:
-    dialog = QInputDialog(screens['Reports'])
+    dialog = QInputDialog(window.getScreen("Reports"))
     dialog.setOption(QInputDialog.UseListViewForComboBoxItems)
     def __init__(self, label, x, y, options, index):
         self.index = index
@@ -309,7 +310,7 @@ class SentenceGroup:
         self.change.deleteLater()
 
     def addOption(self):
-        text, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Add Option", "Sentence", QLineEdit.Normal, "")
+        text, ok = QInputDialog(window.getScreen("Reports")).getText(window.getScreen("Reports"), "Add Option", "Sentence", QLineEdit.Normal, "")
         if ok and len(text) > 0:
             self.dropdown.options.append(text)
             self.dropdown.addItem(replace_generics(text))
@@ -358,7 +359,7 @@ class SentenceGroup:
             SentenceGroup.dialog.setWindowTitle("Edit Item")
             SentenceGroup.dialog.setLabelText("Choose an item to edit:")
             if SentenceGroup.dialog.exec():
-                replace, ok = QInputDialog(screens['Reports']).getText(screens['Reports'], "Edit Option", "Replace '{}' with:".format(SentenceGroup.dialog.textValue()), QLineEdit.Normal, SentenceGroup.dialog.textValue())
+                replace, ok = QInputDialog(window.getScreen("Reports")).getText(window.getScreen("Reports"), "Edit Option", "Replace '{}' with:".format(SentenceGroup.dialog.textValue()), QLineEdit.Normal, SentenceGroup.dialog.textValue())
                 if ok and len(replace) > 0:
                     index = self.dropdown.options.index(SentenceGroup.dialog.textValue())
                     self.dropdown.options[index] = replace
@@ -486,20 +487,20 @@ def update_tab_order():
     global student_dropdown
     global report_area
 
-    screens['Reports'].setTabOrder(class_dropdown, student_dropdown)
+    window.getScreen("Reports").setTabOrder(class_dropdown, student_dropdown)
 
     if len(sentences) > 0:
-        screens['Reports'].setTabOrder(student_dropdown, sentences[0].dropdown)
+        window.getScreen("Reports").setTabOrder(student_dropdown, sentences[0].dropdown)
         count = 0
         if len(sentences) > 1:
             for sentence in sentences[:-1]:
-                screens['Reports'].setTabOrder(sentences[count].dropdown, sentences[count+1].dropdown)
+                window.getScreen("Reports").setTabOrder(sentences[count].dropdown, sentences[count+1].dropdown)
                 count+=1
-        screens['Reports'].setTabOrder(sentences[count].dropdown, generate_button)
+        window.getScreen("Reports").setTabOrder(sentences[count].dropdown, generate_button)
     else:
-        screens['Reports'].setTabOrder(student_dropdown, generate_button)
-    screens['Reports'].setTabOrder(generate_button, report_area)
-    screens['Reports'].setTabOrder(report_area, submit_button)
+        window.getScreen("Reports").setTabOrder(student_dropdown, generate_button)
+    window.getScreen("Reports").setTabOrder(generate_button, report_area)
+    window.getScreen("Reports").setTabOrder(report_area, submit_button)
 
 def update_sentences():
     global sentences
@@ -662,13 +663,13 @@ def generate_report_from_preset():
             report_area.setText(report_area.toPlainText() + replace_generics(elem.text) + " ")
     report_area.repaint()
 
-grades_table = Table('Grades', header=["Assignment", "Grade", "Scheme"], locked=["Assignment", "Scheme"], x=0, y=0, w=700, h=screens['Reports'].height(), custom_change=True)
+grades_table = Table('Grades', header=["Assignment", "Grade", "Scheme"], locked=["Assignment", "Scheme"], x=0, y=0, w=700, h=window.height(), custom_change=True)
 
 class TableBuilder:
     def __init__(self, options=None, tables=None):
         self.options = options if options else []
         self.tables = tables if tables else []
-        self.dropdown = Dropdown("Builder", x=screens["Builder"].width()/2.25, y=0, options=self.options, editable=False)
+        self.dropdown = Dropdown("Builder", x=window.width()/2.25, y=0, options=self.options, editable=False)
         #Set of page options
         self.add_options = ["Add Page...", "Class", "Sentences", "Schemes", "Other"]
 
@@ -679,7 +680,7 @@ class TableBuilder:
         self.remove_button = Button("Builder", "-", x=self.add_dropdown.x() + self.add_dropdown.width(), y=self.dropdown.y(), focusOnTab=False)
         self.add_class_dialog = Multidialog("Builder", "Add Class", [{"name":"Class", "label":"Class", "type":"input"}, {"name":"Block", "label":"Block", "type":"input"}])
 
-        self.veracross_button = Button("Builder", "Load from Veracross", x=screens["Builder"].width()/4, y=700)
+        self.veracross_button = Button("Builder", "Load from Veracross", x=window.width()/4, y=700)
         self.excel_button = Button("Builder", "Save Excel", x=self.veracross_button.x()+self.veracross_button.width(), y=self.veracross_button.y())
         self.sheets_button = Button("Builder", "Save Sheets", x=self.excel_button.x()+self.excel_button.width(), y=self.excel_button.y())
         self.dropdown.currentIndexChanged.connect(self.change_class)
@@ -693,7 +694,7 @@ class TableBuilder:
 
     def create_excel_sheet(self):
         global report_sheet
-        file = QFileDialog.getSaveFileName(screens["Builder"], 'Dialog Title', os.path.join(os.path.dirname(__file__), "data"), '(*.xlsx)')
+        file = QFileDialog.getSaveFileName(window.getScreen("Builder"), 'Dialog Title', os.path.join(os.path.dirname(__file__), "data"), '(*.xlsx)')
         if len(file[0]) > 0:
             excel_sheet = openpyxl.Workbook()
             for i, tab in enumerate(self.options):
@@ -725,7 +726,7 @@ class TableBuilder:
                 for c in class_json:
                     class_name = class_json[c]['name']
                     student_set = [[s['preferred_name'], s['last_name'], s['gender'], ""] for s in class_json[c]['students']]
-                    self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=False, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
+                    self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=window.width(), h=675, shown=False, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
                     self.tables[-1].updateTable(student_set)
                     self.options.append(class_name)
                 self.dropdown.addItems(self.options)
@@ -749,12 +750,12 @@ class TableBuilder:
                         self.add_sentence_tab(sentences_name)
                         self.options.append(tab_name)
                         self.dropdown.addItem(tab_name)
-                        self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=True, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
+                        self.tables.append(Table("Builder", header=self.class_headers, x=0, y=30, w=window.width(), h=675, shown=True, accepted={"Gender":{"whitelist":["M", "F", "T"]}}))
                         self.tables[-1].updateTable([[""]*4]*10)
                         self.dropdown.setCurrentIndex(self.dropdown.count() - 1)
                     self.add_class_dialog.refresh()
             if self.add_dropdown.currentText() == "Sentences":
-                course_name, ok = QInputDialog(screens["Builder"]).getText(screens["Builder"], "Add Sentence Tab", "Course Name:", QLineEdit.Normal, "")
+                course_name, ok = QInputDialog(window.getScreen("Builder")).getText(window.getScreen("Builder"), "Add Sentence Tab", "Course Name:", QLineEdit.Normal, "")
                 if ok: self.add_sentence_tab("Sentences " + course_name.replace("-", ""), True)
 
         self.add_dropdown.setCurrentIndex(0)
@@ -763,7 +764,7 @@ class TableBuilder:
         if len(sn) > 0 and self.dropdown.findText(sn) == -1:
             self.options.append(sn)
             self.dropdown.addItem(sn)
-            self.tables.append(Table("Builder", header=self.sentence_headers, x=0, y=30, w=screens["Builder"].width(), h=675, shown=show))
+            self.tables.append(Table("Builder", header=self.sentence_headers, x=0, y=30, w=window.width(), h=675, shown=show))
             self.tables[-1].updateTable([[""] * 4] * 10)
             if show: self.dropdown.setCurrentIndex(self.dropdown.count() - 1)
 
@@ -779,13 +780,10 @@ def grade_cell_changed(item):
         col = item.column()
         row = item.row()
 
-        # print(f"Edited: ({col}, {row}) | Value: {item.text()}")
         if grades_table.horizontalHeaderItem(col) is not None and grades_table.horizontalHeaderItem(col).text() == "Grade":
-            # print(f'Old: {grades_table.oldText} | New: {item.text()}')
             scheme = grades_table.item(row, col + 1)
             assignment = grades_table.item(row, col - 1)
             if scheme is not None and not GradeSet(scheme.text()).is_valid(item.text()):
-                # print(f'{item.text()} is invalid! Reverting to {grades_table.oldText}')
                 item.setText(grades_table.oldText)
             elif scheme is not None:
                 current_student.grades[assignment.text()]['grade'] = item.text()
@@ -873,7 +871,6 @@ def setup():
     global first_run
 
     if prefs.get_pref('is_web'):
-        print(sheet.get('sheets'))
         all_tab_pairs = {tab['properties']['title']:tab['properties'] for tab in sheet.get('sheets')}
         all_tabs = [tab for tab in all_tab_pairs]
     else:
@@ -887,7 +884,7 @@ def setup():
     preset_list = {}
     grade_rules = []
 
-    switch_screen("Reports")
+    window.switchScreen("Reports")
     open_reports_from_setup_button.show()
 
     if not first_run:
@@ -980,7 +977,7 @@ def setup_sheet_from_dialog(report=None):
     valid = False
     while not valid:
         if not report:
-            report, ok = QInputDialog(screens["Reports"]).getText(screens["Reports"], "Report Sheet", (response.text+" "+prompt_text).strip(), QLineEdit.Normal, "")
+            report, ok = QInputDialog(window.getScreen("Reports")).getText(window.getScreen("Reports"), "Report Sheet", (response.text+" "+prompt_text).strip(), QLineEdit.Normal, "")
             if not ok:
                 sheet = False
                 return
@@ -989,16 +986,16 @@ def setup_sheet_from_dialog(report=None):
     sheet = response
     setup()
 
-load_sheet_file_button = Button("Setup", "Load Sheet (File)", screens['Setup'].width() / 3, screens['Setup'].height() / 3, False)
-load_sheet_url_button = Button("Setup", "Load Sheet (URL)", load_sheet_file_button.x() + load_sheet_file_button.width(), screens['Setup'].height() / 3, False)
+load_sheet_file_button = Button("Setup", "Load Sheet (File)", window.width() / 3, window.height() / 3, False)
+load_sheet_url_button = Button("Setup", "Load Sheet (URL)", load_sheet_file_button.x() + load_sheet_file_button.width(), window.height() / 3, False)
 
-create_report_sheet_button = Button("Setup", "Create Reports Sheet", screens['Setup'].width() / 3, load_sheet_file_button.y() + load_sheet_file_button.height(), False)
+create_report_sheet_button = Button("Setup", "Create Reports Sheet", window.width() / 3, load_sheet_file_button.y() + load_sheet_file_button.height(), False)
 open_setup_from_builder_button = Button("Builder", "Back", 0, 0, False)
 
 load_sheet_file_button.clicked.connect(setup_sheet_from_file)
 load_sheet_url_button.clicked.connect(setup_sheet_from_dialog)
-create_report_sheet_button.clicked.connect(lambda: switch_screen("Builder"))
-open_setup_from_builder_button.clicked.connect(lambda: switch_screen("Setup"))
+create_report_sheet_button.clicked.connect(lambda: window.switchScreen("Builder"))
+open_setup_from_builder_button.clicked.connect(lambda: window.switchScreen("Setup"))
 
 report_area.textChanged.connect(local_save_report)
 submit_button.clicked.connect(send_report)

@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox,\
     QTableWidget, QTableWidgetItem, QHeaderView, QShortcut, QProgressDialog, QMainWindow, QDialog, QFormLayout, QDialogButtonBox,\
-    QLineEdit, QGroupBox, QVBoxLayout, QTableView
+    QLineEdit, QGroupBox, QVBoxLayout, QTableView, QStackedWidget
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCursor
 
@@ -9,7 +9,7 @@ from sys import exit
 from preferences import prefs
 
 class Application(QApplication):
-    def __init__(self, name, useStyle):
+    def __init__(self, name, useStyle=True):
         super(Application, self).__init__([])
         self.setApplicationName(name)
         self.useStyle = useStyle
@@ -21,24 +21,44 @@ class Application(QApplication):
             self.setStyleSheet(f'''
                 QPushButton, QComboBox {{color: {prefs.get_pref('txt_color') if not None else '#000000'};}}
                 QLabel {{color: {prefs.get_pref('lbl_color') if not None else '#ffffff'};}}
-                QWidget#Reports, QWidget#Preferences {{background: {prefs.get_pref('bg_color') if not None else '#000080'};}}
+                Window {{background: {prefs.get_pref('bg_color') if not None else '#000080'};}}
                 QTableWidget {{background:{prefs.get_pref('bg_color') if not None else '000080'};}}
             ''')
 
 app = Application("Report Card Generator", useStyle=True)
 
-class Window(QWidget):
-    def __init__(self, name, x, y, w, h, shown=False):
+class Window(QMainWindow):
+    def __init__(self, width, height):
         super(Window, self).__init__()
-        self.setWindowTitle(name)
-        self.setGeometry(x, y, w, h)
-        self.setFixedSize(self.size())
-        self.setObjectName(name)
-        self.setUI(bg_color=prefs.get_pref('bg_color') if not None else "#000080", txt_color=prefs.get_pref('txt_color') if not None else "#ffffff")
-        self.shown = shown
-        if shown:
-            self.show()
+        self.setFixedSize(width, height)
+        self.setWindowTitle("Report Card Generator")
 
+        self.screen_manager = QStackedWidget(self)
+        self.setCentralWidget(self.screen_manager)
+        self.screens = {}
+
+        self.addScreen("Reports", Screen("Report Builder"))
+        self.addScreen("Preferences", Screen("Preferences"))
+        self.addScreen("Grades", Screen("Grade Editor"))
+        self.addScreen("Setup", Screen("Report Sheet Setup"))
+        self.addScreen("Builder", Screen("Report Sheet Builder"))
+
+        self.show()
+        self.switchScreen("Setup")
+        self.setUI(bg_color=prefs.get_pref('bg_color') if not None else "#000080", txt_color=prefs.get_pref('txt_color') if not None else "#ffffff")
+
+    def addScreen(self, name, screen):
+        if not name in self.screens:
+            self.screens[name] = screen
+            self.screen_manager.addWidget(screen)
+
+    def getScreen(self, name):
+        if name in self.screens: return self.screens[name]
+
+    def switchScreen(self, name):
+        if name in self.screens:
+            self.screen_manager.setCurrentWidget(self.screens[name])
+            self.setWindowTitle(self.screens[name].objectName())
 
     def setUI(self, bg_color=None, txt_color=None):
         palette = self.palette()
@@ -61,33 +81,21 @@ class Window(QWidget):
         else:
             super(Window, self).keyPressEvent(event)
 
-screens = {
-    "Reports":Window("Reports", 0, 0, 1000, 750, False),
-    "Preferences":Window("Preferences", 0, 0, 1000, 750, False),
-    "Grades":Window("Grades", 0, 0, 1000, 750, False),
-    "Setup":Window("Sheet Setup", 0, 0, 1000, 750, True),
-    "Builder":Window("Sheet Builder", 0, 0, 1000, 750, False),
-    "Test":Window("Testing", 0, 0, 1000, 750, False)
-}
+class Screen(QWidget):
+    def __init__(self, name, x=None, y=None, w=None, h=None, shown=False):
+        super(Screen, self).__init__()
+        self.setObjectName(name)
+        self.shown = shown
+        if shown:
+            self.show()
 
-def switch_screen(to):
-    if not to in screens:
-        return
-    else:
-        if not screens[to].shown:
-            for screen in screens:
-                if not screen == to:
-                    screens[screen].shown = False
-                    screens[screen].hide()
-                else:
-                    screens[screen].shown = True
-                    screens[screen].show()
+window = Window(1000, 750)
 
 class Button(QPushButton):
     def __init__(self, screen, text, x, y, focusOnTab=True, shown=True):
-        if screen in screens:
+        if screen in window.screens:
             self.screen = screen
-            super(Button, self).__init__(screens[screen])
+            super(Button, self).__init__(window.screens[screen])
         else:
             self.screen = None
         self.setText(text)
@@ -107,9 +115,9 @@ class Button(QPushButton):
 
 class Label(QLabel):
     def __init__(self, screen, text, x, y, shown=True):
-        if screen in screens:
+        if screen in window.screens:
             self.screen = screen
-            super(Label, self).__init__(screens[screen])
+            super(Label, self).__init__(window.screens[screen])
         else:
             self.screen = None
 
@@ -123,9 +131,9 @@ class Label(QLabel):
 
 class Dropdown(QComboBox):
     def __init__(self, screen, x, y, options, focusOnTab=True, editable=False):
-        if screen in screens:
+        if screen in window.screens:
             self.screen = screen
-            super(Dropdown, self).__init__(screens[screen])
+            super(Dropdown, self).__init__(window.screens[screen])
         else:
             self.screen = None
         self.move(x, y)
@@ -158,9 +166,9 @@ class Dropdown(QComboBox):
 
 class Table(QTableWidget):
     def __init__(self, screen, header=None, data=None, x=None, y=None, w=None, h=None, locked=None, changed=None, shown=True, accepted=None, custom_change=False):
-        if screen in screens:
+        if screen in window.screens:
             self.screen = screen
-            super(Table, self).__init__(len(data) if data else 0, len(data[0]) if data else 0, screens[screen])
+            super(Table, self).__init__(len(data) if data else 0, len(data[0]) if data else 0, window.screens[screen])
         else:
             self.screen = None
         self.header = header
@@ -180,7 +188,6 @@ class Table(QTableWidget):
         if shown: self.show()
         self.enterPressed = False
 
-    #THERE IS A BUG WITH THIS ON ENTER!
     def backupCell(self, row=-1, col=-1): #selected and deselected never used, but should be backupCell(selected, deselected)
         if self.currentItem():
             self.oldText = self.currentItem().text()
@@ -217,13 +224,13 @@ class Table(QTableWidget):
             self.enterPressed = True
         elif editing and column < self.columnCount() - 1 and event.key() == Qt.Key_Right:
             self.setCurrentCell(row, column + 1)
-            print("Right Column Shift")
+            # print("Right Column Shift")
         elif editing and column > 0 and event.key() == Qt.Key_Left:
             self.setCurrentCell(row, column - 1)
-            print("Left Column Shift")
+            # print("Left Column Shift")
         else:
             super().keyPressEvent(event)
-            print("Normal Key Event")
+            # print("Normal Key Event")
 
     def validate(self, item):
         if self.oldCell != (item.row(), item.column()): self.oldText = ""
@@ -256,9 +263,9 @@ class Table(QTableWidget):
 
 class Textarea(QTextEdit):
     def __init__(self, screen, content, x, y, w, h):
-        if screen in screens:
+        if screen in window.screens:
             self.screen = screen
-            super(Textarea, self).__init__(screens[screen])
+            super(Textarea, self).__init__(window.screens[screen])
         else:
             self.screen = None
         self.setGeometry(x, y, w, h)
@@ -304,9 +311,9 @@ class Textarea(QTextEdit):
 
 class Checkbox(QCheckBox):
     def __init__(self, screen, x, y):
-        if screen in screens:
+        if screen in window.screens:
             self.screen = screen
-            super(Checkbox, self).__init__(screens[screen])
+            super(Checkbox, self).__init__(window.screens[screen])
         else:
             self.screen = None
         self.setChecked(True)
@@ -316,9 +323,9 @@ class Checkbox(QCheckBox):
 
 class ColorSelector(QColorDialog):
     def __init__(self, screen, corresponds=None):
-        if screen in screens:
+        if screen in window.screens:
             self.screen = screen
-            super(ColorSelector, self).__init__(screens[screen])
+            super(ColorSelector, self).__init__(window.screens[screen])
         else:
             self.screen = None
         self.corresponds = corresponds
@@ -333,9 +340,9 @@ class ColorSelector(QColorDialog):
 class Multidialog(QDialog):
     def __init__(self, screen, title, form_set):
 
-        if screen in screens:
+        if screen in window.screens:
             self.screen = screen
-            super(Multidialog, self).__init__(screens[screen])
+            super(Multidialog, self).__init__(window.screens[screen])
         else:
             self.screen = None
 

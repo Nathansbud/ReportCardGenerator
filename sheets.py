@@ -74,11 +74,6 @@ def write_sheet(sheet, values, r='', mode="ROWS", tab_id=None, option=None):
                             "inheritFromBefore": True if option['start'] > 0 else False
                         },
                     }}).execute()
-        # if option['operation'] == "insert":
-        #     service.spreadsheets().values().append(spreadsheetId=sheet, range=r, valueInputOption="RAW", body={
-        #         'values': values,
-        #         'majorDimension': mode
-        #     }).execute(),
 
 def make_sheet(title=None):
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
