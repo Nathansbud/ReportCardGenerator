@@ -1,7 +1,7 @@
 import os
 import re
-from math import floor
-from threading import Thread, active_count
+from threading import Thread
+from enum import Enum
 
 import googleapiclient.errors
 import httplib2
@@ -13,9 +13,10 @@ from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Ta
 from cuter import app, window
 from grades import GradeSet, load_grades
 from preferences import prefs
-from sheets import get_sheet, write_sheet
+from sheets import get_sheet, write_sheet, make_report_sheet
 from veracross import get_class_json
-from enum import Enum
+from util import *
+
 
 '''
 Todo:
@@ -137,12 +138,6 @@ label_color_button.clicked.connect(lambda: color_selector.updateColor("Label Col
 refresh_button = Button("Reports", "Refresh Sentences", 0, 0, False)
 add_sentence_button = Button("Reports", "Add Sentence", 0, refresh_button.y() + refresh_button.height(), False)
 
-
-def index_to_column(idx):
-    major = chr(65 + floor(idx / 26 - 1)) if idx > 25 else ""
-    minor = chr(65 + idx % 26)
-    return str(major + minor)
-
 def sentence_tab(s=None):
     if not s: s=class_dropdown.currentText()
     return "Sentences " + s.split("-")[0]
@@ -250,7 +245,7 @@ def replace_generics(fmt):
                 fmt = fmt[0:index + 2] + fmt[index + 2].upper() + fmt[index + 3:]
 
         return fmt.strip()
-    else: return None
+    else: return fmt
 
 def make_lowercase_generics(fmt):
     substr = fmt
@@ -475,7 +470,7 @@ def fill_class_data(class_index=None):
             reformat_student_dropdown()
         else:
             student_dropdown.addItems([student.first_name + " " + student.last_name for student in class_students if student.first_name and student.last_name])
-        if class_dropdown.history[-1].split("-")[0] != class_name.split("-")[0]:
+        if class_dropdown.history[-1].split("-")[0] != class_name.split("-")[0] or not first_run:
             update_sentences()
         class_dropdown.history.append(class_name)
         update_report()
@@ -665,7 +660,7 @@ def generate_report_from_preset():
 
 grades_table = Table('Grades', header=["Assignment", "Grade", "Scheme"], locked=["Assignment", "Scheme"], x=0, y=0, w=700, h=window.height(), custom_change=True)
 
-class TableBuilder:
+class SheetBuilder:
     def __init__(self, options=None, tables=None):
         self.options = options if options else []
         self.tables = tables if tables else []
@@ -686,6 +681,8 @@ class TableBuilder:
         self.dropdown.currentIndexChanged.connect(self.change_class)
 
         self.excel_button.clicked.connect(self.create_excel_sheet)
+        self.sheets_button.clicked.connect(self.create_google_sheet)
+
         self.veracross_button.clicked.connect(self.generate_from_veracross)
         self.veracross_login_dialog = Multidialog("Builder", "Input Login", [{"name":"Username", "label":"Username", "type":"input"},
                                                                              {"name":"Password", "label":"Password", "type":"input", "settings":{"mode":"password"}}])
@@ -709,6 +706,16 @@ class TableBuilder:
             prefs.update_pref("report_sheet", file[0])
             report_sheet = file[0]
             setup_existing()
+
+    def create_google_sheet(self):
+        name, ok = QInputDialog(window.getScreen("Builder")).getText(window.getScreen("Builder"), "Name Google Sheet", "Sheet Title:", QLineEdit.Normal, "")
+        if ok:
+            if len(name) > 0:
+                req_data = [{"title":tab, "data":[self.tables[i].header]+self.tables[i].data} for i, tab in enumerate(self.options)]
+                report_sheet = make_report_sheet(name, req_data)
+                prefs.update_pref("is_web", True)
+                prefs.update_pref("report_sheet", report_sheet)
+                setup_existing()
 
     def generate_from_veracross(self):
         if self.veracross_login_dialog.exec():
@@ -768,7 +775,7 @@ class TableBuilder:
             self.tables[-1].updateTable([[""] * 4] * 10)
             if show: self.dropdown.setCurrentIndex(self.dropdown.count() - 1)
 
-table_builder = TableBuilder()
+sheet_builder = SheetBuilder()
 
 def grade_cell_changed(item):
     global class_students
@@ -876,7 +883,7 @@ def setup():
     else:
         all_tabs = sheet.sheetnames
 
-    grade_scheme_tabs = [tab for tab in all_tabs if tab.startswith("Grade Scheme") or tab.startswith("Grade Rule")]
+    grade_scheme_tabs = [tab for tab in all_tabs if tab.startswith("Grade Scheme")]
     class_tabs = [tab for tab in all_tabs if len(tab.split("-")) == 2]
     sentence_tabs = [tab for tab in all_tabs if tab.startswith("Sentences")]
 

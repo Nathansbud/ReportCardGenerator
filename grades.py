@@ -155,9 +155,7 @@ def load_grades(grade_tabs=None):
     if grade_tabs:
         for tab in grade_tabs:
             grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format(tab), mode='COLUMNS').get('values')
-            for s in grade_rules:
-                if s[0] != '':
-                    grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
-
-
-
+            if grade_rules:
+                for s in grade_rules:
+                    if s[0] != '':
+                        grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
