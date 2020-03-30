@@ -362,29 +362,60 @@ class Multidialog(QDialog):
             if not 'name' in f: continue
             else:
                 self.elements[f['name']] = {k:f[k] for k in f}
-                self.elements[f['name']]['object'] = self.get_element(f['type'],
-                                                                      settings=f['settings'] if 'settings' in f else None,
-                                                                      data=f['data'] if 'data' in f else None)
-            layout.addRow(f['label'], self.elements[f['name']]['object'])
+                e, l = self.get_element(etype=f['type'],
+                                        settings=f['settings'] if 'settings' in f else None,
+                                        data=f['data'] if 'data' in f else None,
+                                        label=f['label'] if 'label' in f else None)
+                self.elements[f['name']]['object'], self.elements[f['name']]['label'] = e, l
+                self.elements[f['name']]['callback'] = False
+                if 'settings' in f: self.elements[f['name']]['settings'] = f['settings']
+
+            layout.addRow(self.elements[f['name']]['label'], self.elements[f['name']]['object'])
+        self.initialize_settings()
+
         self.group_box.setLayout(layout)
         self.main_layout.addWidget(self.group_box)
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
 
-    def get_element(self, etype, settings, data):
+    def get_element(self, etype, settings, data, label):
+        widget = None
+        label = QLabel(label)
         if etype.lower() == "input":
             le = QLineEdit()
             if data and isinstance(data, str): le.setText(data)
-            if settings:
-                if "mode" in settings:
-                    if settings["mode"] == "password": le.setEchoMode(QLineEdit.Password)
-            return le
+            if settings and 'mode' in settings:
+                if settings["mode"] == "password": le.setEchoMode(QLineEdit.Password)
+            widget = le
         elif etype.lower() == "dropdown":
             cb = QComboBox()
             if data:
                 if isinstance(data, list): cb.addItems(data)
                 elif isinstance(data, str): cb.addItem(data)
-            return QComboBox()
+            widget = cb
+        return widget, label
+
+    def initialize_settings(self):
+        for el in self.elements:
+            e = self.elements[el]
+            if 'settings' in e:
+                settings = e['settings']
+                if 'conditional_show' in settings:
+                    if 'element' in settings['conditional_show']:
+                        if settings['conditional_show']['element'] in self.elements:
+                            ref_e = settings['conditional_show']['element']
+                            if 'callback' in self.elements[ref_e] and not self.elements[ref_e]['callback']:
+                                if 'object' in self.elements[ref_e] and isinstance(self.elements[ref_e]['object'], QComboBox):
+                                    self.elements[ref_e]['object'].currentIndexChanged.connect(self.initialize_settings)
+                            if 'object' in self.elements[ref_e]:
+                                if 'not_state' in settings['conditional_show']:
+                                    sv = not (self.elements[ref_e]['object'].currentText() in settings['conditional_show']['not_state'])
+                                    e['object'].setVisible(sv)
+                                    e['label'].setVisible(sv)
+                                elif 'state' in settings['conditional_show']:
+                                    sv = (self.elements[ref_e]['object'].currentText() in settings['conditional_show']['state'])
+                                    e['object'].setVisible(sv)
+                                    e['label'].setVisible(sv)
 
     def refresh(self):
         for w in self.group_box.children():

@@ -31,6 +31,7 @@ Todo:
         - Veracross username & password as text field rather than login box
         - Support for RTF (italics)
         - Support for multi-paragraph reports
+        - Fix multidialogs to be...not a freaking mess (especially initialize settings)
     Low:
         - Use Sheets API file selector
         - updateTable needs an overhaul
@@ -686,6 +687,24 @@ class SheetBuilder:
         self.veracross_button.clicked.connect(self.generate_from_veracross)
         self.veracross_login_dialog = Multidialog("Builder", "Input Login", [{"name":"Username", "label":"Username", "type":"input"},
                                                                              {"name":"Password", "label":"Password", "type":"input", "settings":{"mode":"password"}}])
+
+        self.scheme_add_dialog = Multidialog("Builder", "Create Scheme", [{"name":"Name", "label":"Name", "type":"input"},
+                                                                          {"name":"Scale", "label":"Scale", "type":"dropdown", "data":["Increasing", "Decreasing"]},
+                                                                          {"name":"Type", "label":"Element Type", "type":"dropdown", "data":["Integer", "Number", "Letter", "List"]},
+                                                                          {"name":"Lower Bound", "label":"Lower Bound", "type":"input", "settings":{"conditional_show":{
+                                                                              "element":"Type", "not_state":["List"]
+                                                                          }}},
+                                                                          {"name":"Upper Bound", "label":"Upper Bound", "type":"input", "settings":{"conditional_show":{
+                                                                              "element":"Type", "not_state":["List"]
+                                                                          }}},
+                                                                          {"name":"Pass Bound", "label":"Pass Bound", "type":"input", "settings":{"conditional_show":{
+                                                                              "element":"Type", "not_state":["List"]
+                                                                          }}},
+                                                                          {"name":"Options", "label":"Options (,)", "type":"input", "settings":{"conditional_show":{
+                                                                              "element":"Type", "state":["Number"]
+                                                                          }}}])
+        self.scheme_add_dialog.exec()
+
         self.add_dropdown.currentIndexChanged.connect(self.add_option)
         # self.remove_button.clicked.connect(self.remove_option)
 
