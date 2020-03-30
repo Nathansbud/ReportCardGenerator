@@ -4,11 +4,15 @@ from preferences import prefs
 from sheets import get_sheet
 from copy import deepcopy
 
-class Scale(Enum):
-    BINARY = auto()
-    LINEAR = auto()
-    LINEAR_INVERT = auto()
-    NONE = auto()
+class GradeScale(Enum):
+    LINEAR = ("L")
+    LINEAR_INVERT = ("LI")
+    NONE = ("N")
+    BINARY = ("B")
+
+    def __init__(self, text):
+        self.text = text
+
 
 class GradeType(Enum):
     INTEGER = auto()
@@ -18,9 +22,9 @@ class GradeType(Enum):
     MAP = auto()
 
 class GradeScheme:
-    def __init__(self, name=None, lower_bound=None, upper_bound=None, pass_bound=None, scale=None, gtype=None, gset=None):
+    def __init__(self, name=None, lower_bound=None, upper_bound=None, pass_bound=None, gscale=None, gtype=None, gset=None):
         self.name = name
-        self.scale = scale
+        self.gscale = gscale
         self.gtype = gtype
         self.lower_bound = lower_bound
         self.upper_bound = upper_bound
@@ -32,15 +36,14 @@ class GradeScheme:
 
 
 default_schemes = {
-    'IB':GradeScheme(name='IB', lower_bound=1, upper_bound=7, pass_bound=3, scale=Scale.LINEAR, gtype=GradeType.INTEGER),
-    'AP':GradeScheme(name='AP', lower_bound=1, upper_bound=5, pass_bound=3, scale=Scale.LINEAR, gtype=GradeType.INTEGER),
-    'PERCENTAGE':GradeScheme(name='PERCENTAGE', lower_bound=0, upper_bound=100, pass_bound=60, scale=Scale.LINEAR, gtype=GradeType.NUMBER),
-    'ALPHABETIC_WHOLE':GradeScheme(name='ALPHABETIC_WHOLE', lower_bound='F', upper_bound='A', pass_bound='C', scale=Scale.LINEAR_INVERT, gtype=GradeType.ALPHABETIC),
-    'ALPHABETIC_HALF':GradeScheme(name='ALPHABETIC_HALF', scale=Scale.LINEAR, pass_bound='D', gtype=GradeType.SET,
+    'IB':GradeScheme(name='IB', lower_bound=1, upper_bound=7, pass_bound=3, gscale=GradeScale.LINEAR, gtype=GradeType.INTEGER),
+    'AP':GradeScheme(name='AP', lower_bound=1, upper_bound=5, pass_bound=3, gscale=GradeScale.LINEAR, gtype=GradeType.INTEGER),
+    'PERCENTAGE':GradeScheme(name='PERCENTAGE', lower_bound=0, upper_bound=100, pass_bound=60, gscale=GradeScale.LINEAR, gtype=GradeType.NUMBER),
+    'ALPHABETIC_WHOLE':GradeScheme(name='ALPHABETIC_WHOLE', lower_bound='F', upper_bound='A', pass_bound='C', gscale=GradeScale.LINEAR_INVERT, gtype=GradeType.ALPHABETIC),
+    'ALPHABETIC_HALF':GradeScheme(name='ALPHABETIC_HALF', gscale=GradeScale.LINEAR, pass_bound='D', gtype=GradeType.SET,
                                   gset=['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']),
-    'MS':GradeScheme(name='MS', scale=Scale.LINEAR_INVERT, gtype=GradeType.SET, pass_bound='AP',
-        gset=["EX", "ME", "AP", "DM"]),
-    'ATL': GradeScheme(name='ATL', scale=Scale.LINEAR, gtype=GradeType.SET, pass_bound='AP', gset=["R", "S", "C"]),
+    'MS':GradeScheme(name='MS', gscale=GradeScale.LINEAR_INVERT, gtype=GradeType.SET, pass_bound='AP', gset=["EX", "ME", "AP", "DM"]),
+    'ATL': GradeScheme(name='ATL', gscale=GradeScale.LINEAR, gtype=GradeType.SET, pass_bound='S', gset=["R", "S", "C"]),
 }
 
 grade_schemes = deepcopy(default_schemes)
@@ -78,9 +81,9 @@ class GradeSet:
                 return False
         elif self.scheme.gtype == GradeType.ALPHABETIC:
             if isinstance(grade, str) and len(grade) == 1 and str.isalpha(grade):
-                if self.scheme.scale == Scale.LINEAR_INVERT:
+                if self.scheme.scale == GradeScale.LINEAR_INVERT:
                     return self.scheme.upper_bound <= grade <= self.scheme.lower_bound
-                elif self.scheme.scale == Scale.LINEAR:
+                elif self.scheme.scale == GradeScale.LINEAR:
                     return self.scheme.upper_bound >= grade >= self.scheme.lower_bound
                 return False
         elif self.scheme.gtype == GradeType.SET:
@@ -97,7 +100,7 @@ class GradeSet:
         return self.compare(grade, self.scheme.pass_bound, ">=")
 
     def compare(self, a, b, operator):
-        flip = not 'invert' in self.scheme.scale.name.lower()
+        flip = not 'invert' in self.scheme.gscale.name.lower()
         operator_set = {
             ">=": (lambda a1, a2: a1 >= a2 if flip else a1 <= a2),
             ">": (lambda a1, a2: a1 > a2 if flip else a1 < a2),
@@ -158,4 +161,7 @@ def load_grades(grade_tabs=None):
             if grade_rules:
                 for s in grade_rules:
                     if s[0] != '':
-                        grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), scale=Scale.LINEAR_INVERT, gtype=GradeType.SET)
+                        grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), gscale=GradeScale.LINEAR_INVERT, gtype=GradeType.SET)
+
+if __name__ == "__main__":
+    print([gt for gt in GradeType])

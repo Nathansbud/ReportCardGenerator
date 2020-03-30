@@ -7,11 +7,11 @@ import googleapiclient.errors
 import httplib2
 import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QTableWidgetItem
 
 from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table, Multidialog
 from cuter import app, window
-from grades import GradeSet, load_grades
+from grades import GradeSet, GradeType, GradeScheme, GradeScale, load_grades
 from preferences import prefs
 from sheets import get_sheet, write_sheet, make_report_sheet
 from veracross import get_class_json
@@ -24,21 +24,21 @@ Todo:
         - Overhaul classes so they can be edited in-program (load entire sheet in-program, use interface of Sheet Creator)
         - Async spreadsheet loading (modal dialog & QThread)
         - GUI so that user doesn't have to deal with weird text macros
-        - Use Sheets/Excel to CREATE spreadsheet
-        - UI overhaul (it's friggin ugly)
+        - Grade scheme tab rework
     Medium:
+        - updateTable desperately needs an overhaul
         - Format student dropdown for unfinished reports
-        - Veracross username & password as text field rather than login box
-        - Support for RTF (italics)
         - Support for multi-paragraph reports
         - Fix multidialogs to be...not a freaking mess (especially initialize settings)
+        - UI overhaul (it's friggin ugly)
     Low:
         - Use Sheets API file selector
-        - updateTable needs an overhaul
         - oldText/cell saving, updating; Enter key tab down kinda buggy (hackish fix rn by doing enter behavior in validation functions)
-        - Rework editOption to use Multidialog
         - setUI and all graphical stuff...is a damn mess
-
+        - Support for RTF (italics)
+    Very Low:
+        - Rework editOption to use Multidialog
+    
 Bugs: 
     High:
     Medium:
@@ -688,7 +688,7 @@ class SheetBuilder:
         self.veracross_login_dialog = Multidialog("Builder", "Input Login", [{"name":"Username", "label":"Username", "type":"input"},
                                                                              {"name":"Password", "label":"Password", "type":"input", "settings":{"mode":"password"}}])
 
-        self.scheme_add_dialog = Multidialog("Builder", "Create Scheme", [{"name":"Name", "label":"Name", "type":"input"},
+        self.add_scheme_dialog = Multidialog("Builder", "Create Scheme", [{"name":"Name", "label":"Name", "type":"input"},
                                                                           {"name":"Scale", "label":"Scale", "type":"dropdown", "data":["Increasing", "Decreasing"]},
                                                                           {"name":"Type", "label":"Element Type", "type":"dropdown", "data":["Integer", "Number", "Letter", "List"]},
                                                                           {"name":"Lower Bound", "label":"Lower Bound", "type":"input", "settings":{"conditional_show":{
@@ -701,9 +701,8 @@ class SheetBuilder:
                                                                               "element":"Type", "not_state":["List"]
                                                                           }}},
                                                                           {"name":"Options", "label":"Options (,)", "type":"input", "settings":{"conditional_show":{
-                                                                              "element":"Type", "state":["Number"]
+                                                                              "element":"Type", "state":["List"]
                                                                           }}}])
-        self.scheme_add_dialog.exec()
 
         self.add_dropdown.currentIndexChanged.connect(self.add_option)
         # self.remove_button.clicked.connect(self.remove_option)
@@ -780,9 +779,40 @@ class SheetBuilder:
                         self.tables[-1].updateTable([[""]*4]*10)
                         self.dropdown.setCurrentIndex(self.dropdown.count() - 1)
                     self.add_class_dialog.refresh()
-            if self.add_dropdown.currentText() == "Sentences":
+            elif self.add_dropdown.currentText() == "Sentences":
                 course_name, ok = QInputDialog(window.getScreen("Builder")).getText(window.getScreen("Builder"), "Add Sentence Tab", "Course Name:", QLineEdit.Normal, "")
                 if ok: self.add_sentence_tab("Sentences " + course_name.replace("-", ""), True)
+            elif self.add_dropdown.currentText() == "Schemes":
+                if self.add_scheme_dialog.exec():
+                    scheme_name = self.add_scheme_dialog.elements["Name"]['object'].text().strip()
+                    if len(scheme_name) > 0:
+                        scheme_scale = [gs for gs in GradeScale][self.add_scheme_dialog.elements["Scale"]['object'].currentIndex()]
+                        scheme_type = [gt for gt in GradeType][self.add_scheme_dialog.elements["Type"]['object'].currentIndex()]
+
+                        scheme_pb = self.add_scheme_dialog.elements["Pass Bound"]['object'].text().strip()
+                        scheme_lb = self.add_scheme_dialog.elements["Lower Bound"]['object'].text().strip()
+                        scheme_ub = self.add_scheme_dialog.elements["Upper Bound"]['object'].text().strip()
+                        scheme_options = [o.strip() for o in self.add_scheme_dialog.elements['Options']['object'].text().split(",")]
+                        idx_s = self.dropdown.findText("Grade Schemes")
+                        if idx_s == -1:
+                            self.options.append("Grade Schemes")
+                            self.dropdown.addItem("Grade Schemes")
+                            self.tables.append(Table("Builder", header=[scheme_name], x=0, y=30, w=window.width(), h=675, shown=True))
+                            if scheme_type == GradeType.SET: self.tables[-1].updateTable([[o] for o in scheme_options])
+                            else: self.tables[-1].updateTable([[scheme_ub], [scheme_lb]])
+                            self.dropdown.setCurrentIndex(self.dropdown.count() - 1)
+                        else:
+                            self.tables[idx_s].insertColumn(self.tables[idx_s].columnCount())
+                            self.tables[idx_s].header += [scheme_name]
+                            self.tables[idx_s].setHorizontalHeaderLabels(self.tables[idx_s].header)
+                            if scheme_type == GradeType.SET:
+                                for i, item in enumerate(scheme_options):
+                                    self.tables[idx_s].setItem(i, self.tables[idx_s].columnCount() - 1, QTableWidgetItem(item))
+                            else:
+                                self.tables[idx_s].setItem(0, self.tables[idx_s].columnCount() - 1, QTableWidgetItem(scheme_ub))
+                                self.tables[idx_s].setItem(1, self.tables[idx_s].columnCount() - 1, QTableWidgetItem(scheme_lb))
+
+                        self.add_scheme_dialog.refresh()
 
         self.add_dropdown.setCurrentIndex(0)
 
@@ -793,6 +823,7 @@ class SheetBuilder:
             self.tables.append(Table("Builder", header=self.sentence_headers, x=0, y=30, w=window.width(), h=675, shown=show))
             self.tables[-1].updateTable([[""] * 4] * 10)
             if show: self.dropdown.setCurrentIndex(self.dropdown.count() - 1)
+
 
 sheet_builder = SheetBuilder()
 

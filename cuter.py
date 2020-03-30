@@ -192,7 +192,7 @@ class Table(QTableWidget):
         if self.currentItem():
             self.oldText = self.currentItem().text()
             self.oldCell = (self.currentItem().row(), self.currentItem().column())
-            print("Backup Cell:", self.oldText, self.oldCell)
+            # print("Backup Cell:", self.oldText, self.oldCell)
 
     def updateTable(self, data=None):
         self.clearContents()
@@ -389,6 +389,10 @@ class Multidialog(QDialog):
             widget = le
         elif etype.lower() == "dropdown":
             cb = QComboBox()
+            cb.setFocusPolicy(Qt.StrongFocus)
+            # bugged on enter activate; to-do
+            # # QShortcut(QKeySequence(Qt.Key_Return), cb)
+            # cb.enterPressed.activated.connect(lambda: cb.showPopup)
             if data:
                 if isinstance(data, list): cb.addItems(data)
                 elif isinstance(data, str): cb.addItem(data)
@@ -407,6 +411,7 @@ class Multidialog(QDialog):
                             if 'callback' in self.elements[ref_e] and not self.elements[ref_e]['callback']:
                                 if 'object' in self.elements[ref_e] and isinstance(self.elements[ref_e]['object'], QComboBox):
                                     self.elements[ref_e]['object'].currentIndexChanged.connect(self.initialize_settings)
+                                    self.elements[ref_e]['callback'] = True
                             if 'object' in self.elements[ref_e]:
                                 if 'not_state' in settings['conditional_show']:
                                     sv = not (self.elements[ref_e]['object'].currentText() in settings['conditional_show']['not_state'])
