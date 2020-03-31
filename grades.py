@@ -5,21 +5,36 @@ from sheets import get_sheet
 from copy import deepcopy
 
 class GradeScale(Enum):
-    LINEAR = ("L")
-    LINEAR_INVERT = ("LI")
-    NONE = ("N")
+    INCREASING = ("I")
+    DECREASING = ("D")
     BINARY = ("B")
+    NONE = ('')
 
     def __init__(self, text):
         self.text = text
-
-
 class GradeType(Enum):
-    INTEGER = auto()
-    NUMBER = auto()
-    ALPHABETIC = auto()
-    SET = auto()
-    MAP = auto()
+    INTEGER = ("I")
+    NUMBER = ("N")
+    ALPHABETIC = ("A")
+    SET = ("S")
+    MAP = ("M")
+    NONE = ('')
+
+    @staticmethod
+    def is_numeric(gt): return gt == GradeType.INTEGER or gt == GradeType.NUMBER
+    def __init__(self, text):
+        self.text = text
+
+def stringToGradeType(s):
+    gtsm =  {gt.text:gt for gt in GradeType}
+    if s in gtsm: return gtsm[s]
+    else: return gtsm['']
+
+def stringToGradeScale(s):
+    gssm = {gs.text:gs for gs in GradeScale}
+    if s in gssm: return gssm[s]
+    else: return gssm['']
+
 
 class GradeScheme:
     def __init__(self, name=None, lower_bound=None, upper_bound=None, pass_bound=None, gscale=None, gtype=None, gset=None):
@@ -36,14 +51,14 @@ class GradeScheme:
 
 
 default_schemes = {
-    'IB':GradeScheme(name='IB', lower_bound=1, upper_bound=7, pass_bound=3, gscale=GradeScale.LINEAR, gtype=GradeType.INTEGER),
-    'AP':GradeScheme(name='AP', lower_bound=1, upper_bound=5, pass_bound=3, gscale=GradeScale.LINEAR, gtype=GradeType.INTEGER),
-    'PERCENTAGE':GradeScheme(name='PERCENTAGE', lower_bound=0, upper_bound=100, pass_bound=60, gscale=GradeScale.LINEAR, gtype=GradeType.NUMBER),
-    'ALPHABETIC_WHOLE':GradeScheme(name='ALPHABETIC_WHOLE', lower_bound='F', upper_bound='A', pass_bound='C', gscale=GradeScale.LINEAR_INVERT, gtype=GradeType.ALPHABETIC),
-    'ALPHABETIC_HALF':GradeScheme(name='ALPHABETIC_HALF', gscale=GradeScale.LINEAR, pass_bound='D', gtype=GradeType.SET,
+    'IB':GradeScheme(name='IB', lower_bound=1, upper_bound=7, pass_bound=3, gscale=GradeScale.INCREASING, gtype=GradeType.INTEGER),
+    'AP':GradeScheme(name='AP', lower_bound=1, upper_bound=5, pass_bound=3, gscale=GradeScale.INCREASING, gtype=GradeType.INTEGER),
+    'PERCENTAGE':GradeScheme(name='PERCENTAGE', lower_bound=0, upper_bound=100, pass_bound=60, gscale=GradeScale.INCREASING, gtype=GradeType.NUMBER),
+    'ALPHABETIC_WHOLE':GradeScheme(name='ALPHABETIC_WHOLE', lower_bound='F', upper_bound='A', pass_bound='C', gscale=GradeScale.DECREASING, gtype=GradeType.ALPHABETIC),
+    'ALPHABETIC_HALF':GradeScheme(name='ALPHABETIC_HALF', gscale=GradeScale.INCREASING, pass_bound='D', gtype=GradeType.SET,
                                   gset=['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+']),
-    'MS':GradeScheme(name='MS', gscale=GradeScale.LINEAR_INVERT, gtype=GradeType.SET, pass_bound='AP', gset=["EX", "ME", "AP", "DM"]),
-    'ATL': GradeScheme(name='ATL', gscale=GradeScale.LINEAR, gtype=GradeType.SET, pass_bound='S', gset=["R", "S", "C"]),
+    'MS':GradeScheme(name='MS', gscale=GradeScale.DECREASING, gtype=GradeType.SET, pass_bound='AP', gset=["EX", "ME", "AP", "DM"]),
+    'ATL': GradeScheme(name='ATL', gscale=GradeScale.INCREASING, gtype=GradeType.SET, pass_bound='S', gset=["R", "S", "C"]),
 }
 
 grade_schemes = deepcopy(default_schemes)
@@ -81,9 +96,9 @@ class GradeSet:
                 return False
         elif self.scheme.gtype == GradeType.ALPHABETIC:
             if isinstance(grade, str) and len(grade) == 1 and str.isalpha(grade):
-                if self.scheme.scale == GradeScale.LINEAR_INVERT:
+                if self.scheme.scale == GradeScale.DECREASING:
                     return self.scheme.upper_bound <= grade <= self.scheme.lower_bound
-                elif self.scheme.scale == GradeScale.LINEAR:
+                elif self.scheme.scale == GradeScale.INCREASING:
                     return self.scheme.upper_bound >= grade >= self.scheme.lower_bound
                 return False
         elif self.scheme.gtype == GradeType.SET:
@@ -100,7 +115,7 @@ class GradeSet:
         return self.compare(grade, self.scheme.pass_bound, ">=")
 
     def compare(self, a, b, operator):
-        flip = not 'invert' in self.scheme.gscale.name.lower()
+        flip = not (self.scheme.gscale == GradeScale.DECREASING)
         operator_set = {
             ">=": (lambda a1, a2: a1 >= a2 if flip else a1 <= a2),
             ">": (lambda a1, a2: a1 > a2 if flip else a1 < a2),
@@ -160,8 +175,41 @@ def load_grades(grade_tabs=None):
             grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format(tab), mode='COLUMNS').get('values')
             if grade_rules:
                 for s in grade_rules:
-                    if s[0] != '':
-                        grade_schemes[s[0]] = GradeScheme(gset=list(filter(None, s[1:])), gscale=GradeScale.LINEAR_INVERT, gtype=GradeType.SET)
+                    scheme_data = ["","",""]
 
+                    for i, part in enumerate(r.strip() for r in re.split("[$|]", s[0])): scheme_data[i] = part
+                    scheme_arguments = list(filter(None, s[1:]))
+
+                    if len(scheme_arguments) > 0:
+                        scheme_data[1] = stringToGradeScale(scheme_data[1])
+                        if scheme_data[1] == GradeScale.NONE: scheme_data[1] = GradeScale.DECREASING
+
+                        scheme_data[2] = stringToGradeType(scheme_data[2])
+                        if scheme_data[2] == GradeType.NONE or scheme_data[2] == GradeType.SET:
+                            if scheme_data[2] == GradeType.NONE: scheme_data[2] = GradeType.SET
+                            grade_schemes[scheme_data[0]] = GradeScheme(gscale=scheme_data[1],
+                                                                        gtype=scheme_data[2],
+                                                                        gset=scheme_arguments)
+                        else:
+                            if GradeType.is_numeric(scheme_data[2]):
+                                try:
+                                    ub = int(scheme_arguments[0]) if scheme_arguments == GradeType.INTEGER else float(scheme_arguments[0])
+                                    if len(scheme_arguments) == 1:
+                                        pb = 0
+                                        lb = 0
+                                    elif len(scheme_arguments) == 2:
+                                        pb, lb = int(scheme_arguments[1]) if scheme_arguments == GradeType.INTEGER else float(scheme_arguments[1])
+                                    else:
+                                        pb = int(scheme_arguments[1]) if scheme_arguments == GradeType.INTEGER else float(scheme_arguments[1])
+                                        lb = int(scheme_arguments[2]) if scheme_arguments == GradeType.INTEGER else float(scheme_arguments[2])
+                                    grade_schemes[scheme_data[0]] = GradeScheme(gscale=scheme_data[1],
+                                                                                gtype=scheme_data[2],
+                                                                                lower_bound=lb,
+                                                                                upper_bound=ub,
+                                                                                pass_bound=pb)
+                                except ValueError:
+                                    print("Invalid member data")
+                            elif scheme_arguments[2] == GradeType.ALPHABETIC:
+                                pass
 if __name__ == "__main__":
     print([gt for gt in GradeType])

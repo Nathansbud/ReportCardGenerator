@@ -2,6 +2,7 @@ import os
 import re
 from threading import Thread
 from enum import Enum
+import webbrowser
 
 import googleapiclient.errors
 import httplib2
@@ -96,7 +97,8 @@ student_dropdown.setObjectName("StudentDropdown")
 preset_button = Button("Reports", "Generate Preset", student_dropdown.x() + student_dropdown.width(), student_dropdown.y(), False)
 preset_dropdown = Dropdown("Reports", preset_button.x() + preset_button.width(), preset_button.y(), [], False)
 grade_button = Button("Reports", "Generate From Grades", preset_dropdown.x()+preset_dropdown.width(), preset_dropdown.y(), False)
-reload_grade_schemes_button = Button("Reports", "Reload Grade Rules", grade_button.x()+grade_button.width(), preset_dropdown.y(), False)
+reload_grade_schemes_button = Button("Reports", "Reload Grade Schemes", grade_button.x()+grade_button.width(), preset_dropdown.y(), False)
+launch_report_sheet_button = Button("Reports", "Launch Report Sheet", reload_grade_schemes_button.x(), reload_grade_schemes_button.y()+reload_grade_schemes_button.height(), False)
 
 generate_button = Button("Reports", "Generate", window.width()/2 - 20, 410)
 report_area = Textarea("Reports", "", 0, 450, window.width(), 250)
@@ -1043,6 +1045,19 @@ def setup_sheet_from_dialog(report=None):
     sheet = response
     setup()
 
+def launch_sheet():
+    if prefs.get_pref("is_web"): webbrowser.open_new(f"https://docs.google.com/spreadsheets/d/{prefs.get_pref('report_sheet')}")
+    else:
+        if is_macos():
+            os.system(f"open {prefs.get_pref('report_sheet')}")
+        else:
+            os.startfile(prefs.get_pref('report_sheet'))
+
+def open_sheet():
+    ost = Thread(target=launch_sheet)
+    ost.start()
+
+
 load_sheet_file_button = Button("Setup", "Load Sheet (File)", window.width() / 3, window.height() / 3, False)
 load_sheet_url_button = Button("Setup", "Load Sheet (URL)", load_sheet_file_button.x() + load_sheet_file_button.width(), window.height() / 3, False)
 
@@ -1063,6 +1078,7 @@ reload_button.clicked.connect(setup_existing)
 refresh_button.clicked.connect(update_sentences)
 reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 add_sentence_button.clicked.connect(add_sentence)
+launch_report_sheet_button.clicked.connect(open_sheet)
 
 if __name__ == "__main__":
     if len(report_sheet) > 0: setup_existing()

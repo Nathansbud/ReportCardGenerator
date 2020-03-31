@@ -1,6 +1,6 @@
 import os.path
 import json
-import platform
+from util import is_macos
 
 class Preferences:
     pref_file = os.path.join(os.path.dirname(__file__), "prefs", "config.json")
@@ -12,14 +12,14 @@ class Preferences:
         'class_portal',
         'debug'
     ]
-    os = platform.system()
-    if os == "Darwin":
+
+    if is_macos():
         from Foundation import NSUserDefaults
         theme = NSUserDefaults.standardUserDefaults().stringForKey_('AppleInterfaceStyle')
 
     def __init__(self):
         def get_default_theme(d):
-            return d['dark_theme'] if Preferences.is_macos() and Preferences.theme == 'Dark' else d['light_theme']
+            return d['dark_theme'] if is_macos() and Preferences.theme == 'Dark' else d['light_theme']
 
         if not os.path.isfile(Preferences.pref_file):
             with open(Preferences.defaults, 'r+') as df, open(Preferences.pref_file, 'w+') as pf:
@@ -46,13 +46,5 @@ class Preferences:
     def save_prefs(self):
         with open(Preferences.pref_file, "w+") as pf:
             json.dump(self.prefs, pf)
-
-    @staticmethod
-    def is_macos():
-        return Preferences.os == 'Darwin'
-
-    @staticmethod
-    def is_dark():
-        return Preferences.theme == "Dark"
 
 prefs = Preferences()
