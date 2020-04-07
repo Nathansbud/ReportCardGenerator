@@ -18,7 +18,6 @@ from sheets import get_sheet, write_sheet, make_report_sheet
 from veracross import get_class_json
 from util import *
 
-
 '''
 Todo:
     High:
@@ -97,8 +96,10 @@ student_dropdown.setObjectName("StudentDropdown")
 preset_button = Button("Reports", "Generate Preset", student_dropdown.x() + student_dropdown.width(), student_dropdown.y(), False)
 preset_dropdown = Dropdown("Reports", preset_button.x() + preset_button.width(), preset_button.y(), [], False)
 grade_button = Button("Reports", "Generate From Grades", preset_dropdown.x()+preset_dropdown.width(), preset_dropdown.y(), False)
+
 reload_grade_schemes_button = Button("Reports", "Reload Grade Schemes", grade_button.x()+grade_button.width(), preset_dropdown.y(), False)
 launch_report_sheet_button = Button("Reports", "Launch Report Sheet", reload_grade_schemes_button.x(), reload_grade_schemes_button.y()+reload_grade_schemes_button.height(), False)
+copy_button = Button("Reports", "Copy Report", grade_button.x(), grade_button.y() + grade_button.height(), False)
 
 generate_button = Button("Reports", "Generate", window.width()/2 - 20, 410)
 report_area = Textarea("Reports", "", 0, 450, window.width(), 250)
@@ -711,7 +712,7 @@ class SheetBuilder:
 
     def create_excel_sheet(self):
         global report_sheet
-        file = QFileDialog.getSaveFileName(window.getScreen("Builder"), 'Dialog Title', os.path.join(os.path.dirname(__file__), "data"), '(*.xlsx)')
+        file = QFileDialog.getSaveFileName(window.getScreen("Builder"), 'Dialog Title', os.path.join(os.getcwd(), "data"), '(*.xlsx)')
         if len(file[0]) > 0:
             excel_sheet = openpyxl.Workbook()
             for i, tab in enumerate(self.options):
@@ -1057,6 +1058,12 @@ def open_sheet():
     ost = Thread(target=launch_sheet)
     ost.start()
 
+def copy_report():
+    global report_area
+    text = report_area.toPlainText()
+    cb = app.clipboard()
+    cb.clear(mode=cb.Clipboard)
+    cb.setText(text if len(text) > 0 else "")
 
 load_sheet_file_button = Button("Setup", "Load Sheet (File)", window.width() / 3, window.height() / 3, False)
 load_sheet_url_button = Button("Setup", "Load Sheet (URL)", load_sheet_file_button.x() + load_sheet_file_button.width(), window.height() / 3, False)
@@ -1079,6 +1086,7 @@ refresh_button.clicked.connect(update_sentences)
 reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 add_sentence_button.clicked.connect(add_sentence)
 launch_report_sheet_button.clicked.connect(open_sheet)
+copy_button.clicked.connect(copy_report)
 
 if __name__ == "__main__":
     if len(report_sheet) > 0: setup_existing()

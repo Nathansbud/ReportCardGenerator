@@ -3,8 +3,8 @@ import json
 from util import is_macos
 
 class Preferences:
-    pref_file = os.path.join(os.path.dirname(__file__), "prefs", "config.json")
-    defaults = os.path.join(os.path.dirname(__file__), "prefs", "defaults.json")
+    pref_file = os.path.join(os.getcwd(), "prefs", "config.json")
+    defaults = os.path.join(os.getcwd(), "prefs", "defaults.json")
     copy_list = [
         'report_sheet',
         'format_unfinished',

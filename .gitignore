@@ -4,3 +4,6 @@ credentials/
 prefs/config.json
 *.xlsx
 venv/
+.eggs/
+build/
+dist/
