@@ -96,7 +96,7 @@ class Screen(QWidget):
         if shown:
             self.show()
 
-window = Window(1000, 750)
+window = Window(1000, 775)
 
 class Button(QPushButton):
     def __init__(self, screen, text, x, y, focusOnTab=True, shown=True):
@@ -343,7 +343,7 @@ class ColorSelector(QColorDialog):
             prefs.update_pref(color_pref, color.name())
             QApplication.instance().changeStyle()
 
-#Layout stuff adapted from https://pythonspot.com/pyqt5-form-layout/; rest mine
+#Mine, but layout stuff adapted from https://pythonspot.com/pyqt5-form-layout/
 class Multidialog(QDialog):
     def __init__(self, screen, title, form_set):
 

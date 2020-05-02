@@ -89,6 +89,8 @@ grade_scheme_tabs = []
 grade_rules = []
 user_templates = {}
 
+
+
 class_label = Label("Reports", "Class: ", window.width() / 2.5, 15)
 class_dropdown = Dropdown("Reports", class_label.xw(), class_label.y(), [tab for tab in class_tabs])
 
@@ -96,25 +98,32 @@ student_label = Label("Reports", "Name: ", 50, 75)
 student_dropdown = Dropdown("Reports", student_label.xw(), student_label.y(), [])
 student_dropdown.setObjectName("StudentDropdown")
 
-preset_button = Button("Reports", "Generate Preset", student_dropdown.xw(), student_dropdown.y(), False)
-preset_dropdown = Dropdown("Reports", preset_button.xw(), preset_button.y(), [], False)
-grade_button = Button("Reports", "Generate From Grades", preset_dropdown.xw(), preset_dropdown.y(), False)
 
-reload_grade_schemes_button = Button("Reports", "Reload Grade Schemes", grade_button.xw(), preset_dropdown.y(), False)
-launch_report_sheet_button = Button("Reports", "Launch Report Sheet", reload_grade_schemes_button.x(), reload_grade_schemes_button.yh(), False)
-copy_button = Button("Reports", "Copy Report", grade_button.x(), grade_button.yh(), False)
+open_grades_from_reports_button = Button("Reports", "Grades", student_dropdown.xw(), student_dropdown.y(), False)
+add_sentence_button = Button("Reports", "Add Sentence", open_grades_from_reports_button.xw(), student_dropdown.y(), False)
+reload_all_button = Button("Reports", "Reload", add_sentence_button.xw(), add_sentence_button.y(), False)
+
+launch_report_sheet_button = Button("Reports", "Open Reports", reload_all_button.xw(), reload_all_button.y(), False)
+toggle_advanced_button = Button("Reports", "Toggle Advanced", launch_report_sheet_button.xw(), launch_report_sheet_button.y(), False)
+help_button = Button("Reports", "Help", toggle_advanced_button.xw(), toggle_advanced_button.y(), False)
+
+
+preset_dropdown = Dropdown("Reports", student_dropdown.x(), student_dropdown.yh(), [], False)
+preset_button = Button("Reports", "Generate (Preset)", preset_dropdown.xw(), preset_dropdown.y(), False)
+grade_button = Button("Reports", "Generate (Grades)", preset_button.xw(), preset_dropdown.y(), False)
+
+open_setup_from_report_button = Button("Reports", "Sheet Setup", grade_button.xw(), grade_button.y(), False)
 
 generate_button = Button("Reports", "Generate", window.width()/2 - 20, 410)
 report_area = Textarea("Reports", "", 0, 450, window.width(), 250)
 submit_button = Button("Reports", "Submit", window.width()/2 - 20, 700)
 
+copy_button = Button("Reports", "Copy Report", submit_button.xw(), submit_button.y(), False)
+
 color_selector = ColorSelector("Reports")
 
-open_grades_from_reports_button = Button("Reports", "Open Grades", window.width(), 0, False)
-open_grades_from_reports_button.move(window.width() - open_grades_from_reports_button.width(), 0)
-
-open_preferences_from_reports_button = Button("Reports", "Open Preferences", reload_grade_schemes_button.xw(), preset_dropdown.y(), False)
-open_setup_from_report_button = Button("Reports", "Open Sheet Setup", open_preferences_from_reports_button.x(), open_preferences_from_reports_button.yh(), False, shown=False)
+open_preferences_from_reports_button = Button("Reports", "Preferences", 0, 0, False)
+open_preferences_from_reports_button.move(window.width() - open_preferences_from_reports_button.width(), 0)
 
 open_reports_from_preferences_button = Button("Preferences", "Open Reports", window.width() - 50, 0, False)
 open_reports_from_preferences_button.move(window.width() - open_reports_from_preferences_button.width(), 0)
@@ -141,11 +150,9 @@ background_color_button.clicked.connect(lambda: color_selector.updateColor("Back
 text_color_button.clicked.connect(lambda: color_selector.updateColor("Text Color", "txt_color"))
 label_color_button.clicked.connect(lambda: color_selector.updateColor("Label Color", "lbl_color"))
 
-reload_button = Button("Reports", "Reload", 0, 0, False)
-reload_sentences_button = Button("Reports", "Reload Sentences", reload_button.x(), reload_button.yh(), False)
-
-add_sentence_button = Button("Reports", "Add Sentence", open_grades_from_reports_button.x(), open_grades_from_reports_button.yh(), False)
-help_button = Button("Reports", "Help", reload_sentences_button.xw(), reload_sentences_button.y(), False)
+# UI Cleanup, might bring back
+# reload_sentences_button = Button("Reports", "Sentences", reload_all_button.xw(), reload_all_button.y(), False)
+# reload_schemes_button = Button("Reports", "Schemes", reload_sentences_button.xw(), reload_sentences_button.y(), False)
 
 def sentence_tab(s=None):
     if not s: s=class_dropdown.currentText()
@@ -965,6 +972,7 @@ def setup():
     fill_class_data()
     class_dropdown.currentIndexChanged.connect(fill_class_data)
     student_dropdown.currentIndexChanged.connect(update_student)
+    toggle_advanced([preset_dropdown, preset_button, grade_button, open_setup_from_report_button], force=prefs.get_pref("advanced"))
     first_run = False
 
 def setup_existing():
@@ -1022,7 +1030,6 @@ def validate_sheet(report):
         check_starts = ["edit#"]
 
         report = [part for part in report.split('/') if not part in check_is and not part.startswith(*check_starts)]
-        print(report)
         if len(report) != 1:
             return False, StatusCode.INVALID_ID
         else:
@@ -1097,6 +1104,13 @@ def load_templates(template_tabs):
                     if len(ut) >= 3 and len(ut[2].strip()) > 0: user_templates[ut[0]]["class"] = ut[2]
 
 
+def toggle_advanced(objs, force=None):
+    if len(objs) > 0:
+        for o in objs:
+            o.setVisible(not o.isVisible() if force is None else force)
+        toggle_advanced_button.setText("Hide Advanced" if objs[0].isVisible() else "Show Advanced")
+        prefs.update_pref("advanced", objs[0].isVisible())
+
 def display_help():
     #todo: implement help menu lmao
     pass
@@ -1117,12 +1131,14 @@ submit_button.clicked.connect(send_report)
 generate_button.clicked.connect(generate_report)
 preset_button.clicked.connect(generate_report_from_preset)
 grade_button.clicked.connect(generate_report_from_grades)
-reload_button.clicked.connect(setup_existing)
-reload_sentences_button.clicked.connect(update_sentences)
-reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
+reload_all_button.clicked.connect(setup_existing)
 add_sentence_button.clicked.connect(add_sentence)
 launch_report_sheet_button.clicked.connect(open_sheet)
 copy_button.clicked.connect(copy_report)
+toggle_advanced_button.clicked.connect(lambda: toggle_advanced([preset_dropdown,preset_button,grade_button,open_setup_from_report_button]))
+# Attempting to clean up UI, might bring back
+# reload_sentences_button.clicked.connect(update_sentences)
+# reload_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 
 help_button.clicked.connect(display_help)
 
