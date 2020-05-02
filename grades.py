@@ -3,6 +3,7 @@ import re
 from preferences import prefs
 from sheets import get_sheet
 from copy import deepcopy
+import openpyxl
 
 class GradeScale(Enum):
     INCREASING = ("I")
@@ -172,7 +173,12 @@ def load_grades(grade_tabs=None):
     grade_schemes = deepcopy(default_schemes)
     if grade_tabs:
         for tab in grade_tabs:
-            grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format(tab), mode='COLUMNS').get('values')
+            if prefs.get_pref("is_web"):
+                grade_rules = get_sheet(prefs.get_pref('report_sheet'), "{}!A1:Z1000".format(tab), mode='COLUMNS').get('values')
+            else:
+                s = openpyxl.load_workbook(prefs.get_pref('report_sheet'))
+                grade_rules = [list(filter(None, col)) for col in s[tab].iter_cols(values_only=True)]
+                s.close()
             if grade_rules:
                 for s in grade_rules:
                     scheme_data = ["","",""]
