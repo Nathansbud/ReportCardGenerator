@@ -3,6 +3,7 @@ import re
 from threading import Thread
 from enum import Enum
 import webbrowser
+import json
 
 import googleapiclient.errors
 import httplib2
@@ -31,6 +32,7 @@ Todo:
         - Support for multi-paragraph reports
         - Fix multidialogs to be...not a freaking mess (especially initialize settings)
         - UI overhaul (it's friggin ugly)
+        - More robust templating, user-defined replacements (e.g. {u1} -> This Is My Unit Name)
     Low:
         - Use Sheets API file selector
         - oldText/cell saving, updating; Enter key tab down kinda buggy (hackish fix rn by doing enter behavior in validation functions)
@@ -85,21 +87,22 @@ preset_list = {}
 sentences = []  # Should be populated with SentenceGroup elements
 grade_scheme_tabs = []
 grade_rules = []
+user_templates = {}
 
 class_label = Label("Reports", "Class: ", window.width() / 2.5, 15)
-class_dropdown = Dropdown("Reports", class_label.x() + class_label.width(), class_label.y(), [tab for tab in class_tabs])
+class_dropdown = Dropdown("Reports", class_label.xw(), class_label.y(), [tab for tab in class_tabs])
 
 student_label = Label("Reports", "Name: ", 50, 75)
-student_dropdown = Dropdown("Reports", student_label.x() + student_label.width(), student_label.y(), [])
+student_dropdown = Dropdown("Reports", student_label.xw(), student_label.y(), [])
 student_dropdown.setObjectName("StudentDropdown")
 
-preset_button = Button("Reports", "Generate Preset", student_dropdown.x() + student_dropdown.width(), student_dropdown.y(), False)
-preset_dropdown = Dropdown("Reports", preset_button.x() + preset_button.width(), preset_button.y(), [], False)
-grade_button = Button("Reports", "Generate From Grades", preset_dropdown.x()+preset_dropdown.width(), preset_dropdown.y(), False)
+preset_button = Button("Reports", "Generate Preset", student_dropdown.xw(), student_dropdown.y(), False)
+preset_dropdown = Dropdown("Reports", preset_button.xw(), preset_button.y(), [], False)
+grade_button = Button("Reports", "Generate From Grades", preset_dropdown.xw(), preset_dropdown.y(), False)
 
-reload_grade_schemes_button = Button("Reports", "Reload Grade Schemes", grade_button.x()+grade_button.width(), preset_dropdown.y(), False)
-launch_report_sheet_button = Button("Reports", "Launch Report Sheet", reload_grade_schemes_button.x(), reload_grade_schemes_button.y()+reload_grade_schemes_button.height(), False)
-copy_button = Button("Reports", "Copy Report", grade_button.x(), grade_button.y() + grade_button.height(), False)
+reload_grade_schemes_button = Button("Reports", "Reload Grade Schemes", grade_button.xw(), preset_dropdown.y(), False)
+launch_report_sheet_button = Button("Reports", "Launch Report Sheet", reload_grade_schemes_button.x(), reload_grade_schemes_button.yh(), False)
+copy_button = Button("Reports", "Copy Report", grade_button.x(), grade_button.yh(), False)
 
 generate_button = Button("Reports", "Generate", window.width()/2 - 20, 410)
 report_area = Textarea("Reports", "", 0, 450, window.width(), 250)
@@ -110,8 +113,8 @@ color_selector = ColorSelector("Reports")
 open_grades_from_reports_button = Button("Reports", "Open Grades", window.width(), 0, False)
 open_grades_from_reports_button.move(window.width() - open_grades_from_reports_button.width(), 0)
 
-open_preferences_from_reports_button = Button("Reports", "Open Preferences", reload_grade_schemes_button.x() + reload_grade_schemes_button.width(), preset_dropdown.y(), False)
-open_setup_from_report_button = Button("Reports", "Open Sheet Setup", open_preferences_from_reports_button.x(), open_preferences_from_reports_button.y()+open_preferences_from_reports_button.height(), False, shown=False)
+open_preferences_from_reports_button = Button("Reports", "Open Preferences", reload_grade_schemes_button.xw(), preset_dropdown.y(), False)
+open_setup_from_report_button = Button("Reports", "Open Sheet Setup", open_preferences_from_reports_button.x(), open_preferences_from_reports_button.yh(), False, shown=False)
 
 open_reports_from_preferences_button = Button("Preferences", "Open Reports", window.width() - 50, 0, False)
 open_reports_from_preferences_button.move(window.width() - open_reports_from_preferences_button.width(), 0)
@@ -129,18 +132,20 @@ open_reports_from_grades_button.clicked.connect(lambda: window.switchScreen("Rep
 open_reports_from_preferences_button.clicked.connect(lambda: window.switchScreen("Reports"))
 open_reports_from_setup_button.clicked.connect(lambda: window.switchScreen("Reports"))
 
-reload_button = Button("Reports", "Reload", open_grades_from_reports_button.x(), open_grades_from_reports_button.y() + open_grades_from_reports_button.height(), False)
 
-background_color_button = Button("Preferences", "BG Color", window.width() - 150, open_reports_from_preferences_button.y() + open_reports_from_preferences_button.height(), False)
-text_color_button = Button("Preferences", "Text Color", window.width() - 150, background_color_button.y() + background_color_button.height(), False)
-label_color_button = Button("Preferences", "Label Color", window.width() - 150, text_color_button.y() + text_color_button.height(), False)
+background_color_button = Button("Preferences", "BG Color", window.width() - 150, open_reports_from_preferences_button.yh(), False)
+text_color_button = Button("Preferences", "Text Color", window.width() - 150, background_color_button.yh(), False)
+label_color_button = Button("Preferences", "Label Color", window.width() - 150, text_color_button.yh(), False)
 
 background_color_button.clicked.connect(lambda: color_selector.updateColor("Background Color", "bg_color"))
 text_color_button.clicked.connect(lambda: color_selector.updateColor("Text Color", "txt_color"))
 label_color_button.clicked.connect(lambda: color_selector.updateColor("Label Color", "lbl_color"))
 
-refresh_button = Button("Reports", "Refresh Sentences", 0, 0, False)
-add_sentence_button = Button("Reports", "Add Sentence", 0, refresh_button.y() + refresh_button.height(), False)
+reload_button = Button("Reports", "Reload", 0, 0, False)
+reload_sentences_button = Button("Reports", "Reload Sentences", reload_button.x(), reload_button.yh(), False)
+
+add_sentence_button = Button("Reports", "Add Sentence", open_grades_from_reports_button.x(), open_grades_from_reports_button.yh(), False)
+help_button = Button("Reports", "Help", reload_sentences_button.xw(), reload_sentences_button.y(), False)
 
 def sentence_tab(s=None):
     if not s: s=class_dropdown.currentText()
@@ -197,18 +202,14 @@ class Student:
                 sheet[self.classroom][index_to_column(grades_column_index+i)+str(self.offset)] = grades[i] if not None else ""
             sheet.save(prefs.get_pref('report_sheet'))
 
-    def get_pronouns(self):
-        if self.gender:
-            return Student.pronouns[self.gender]
-        else:
-            return Student.pronouns["T"]
+    def get_pronouns(self): return Student.pronouns[self.gender] if self.gender in Student.pronouns else Student.pronouns["T"]
+    def full_name(self): return ((self.first_name if self.first_name else "") + " " + (self.last_name if self.last_name else "")).strip()
 
-    def full_name(self):
-        return ((self.first_name if self.first_name else "") + " " + (self.last_name if self.last_name else "")).strip()
-
-def replace_generics(fmt):
+def replace_generics(fmt, recurse=False):
     global student_dropdown
     global class_students
+    global user_templates
+
     idx = student_index()
     if idx is not False:
         fmt = make_lowercase_generics(fmt)
@@ -223,6 +224,12 @@ def replace_generics(fmt):
             "{p4}":ps[3], "^":ps[3],
             "{p5}":ps[4], "`":ps[4]
         }
+
+        if not recurse:
+            for t, v in user_templates.items():
+                if not 'class' in v or class_dropdown.currentText().startswith(v['class']):
+                    tg = replace_generics(v['value'], True)
+                    replace_set[t] = tg
 
         fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip()
         for key in replace_set:
@@ -239,14 +246,15 @@ def replace_generics(fmt):
         if current_student.gender == "T":
             fmt = fmt.replace("they is", "they are")
 
-        punctuationIndices = []
-        if len(fmt) > 0: fmt = fmt[0].upper() + fmt[1:]
-        for i in range(0, len(fmt)):
-            if fmt[i] == "." or fmt[i] == "!" or fmt[i] == "?": punctuationIndices.append(i)
+        if not recurse:
+            punctuationIndices = []
+            if len(fmt) > 0: fmt = fmt[0].upper() + fmt[1:]
+            for i in range(0, len(fmt)):
+                if fmt[i] == "." or fmt[i] == "!" or fmt[i] == "?": punctuationIndices.append(i)
 
-        for index in punctuationIndices:
-            if index + 2 < len(fmt):
-                fmt = fmt[0:index + 2] + fmt[index + 2].upper() + fmt[index + 3:]
+            for index in punctuationIndices:
+                if index + 2 < len(fmt):
+                    fmt = fmt[0:index + 2] + fmt[index + 2].upper() + fmt[index + 3:]
 
         return fmt.strip()
     else: return fmt
@@ -278,12 +286,12 @@ class SentenceGroup:
 
         self.checkbox = Checkbox("Reports", x, y)
         self.label = Label("Reports", label, x + self.checkbox.width(), y)
-        self.dropdown = Dropdown("Reports", self.label.x() + self.label.width(), y, [replace_generics(option) for option in options])
+        self.dropdown = Dropdown("Reports", self.label.xw(), y, [replace_generics(option) for option in options])
         self.dropdown.options = options
 
-        self.add = Button("Reports", "+", self.dropdown.x() + self.dropdown.width(), y, False)
+        self.add = Button("Reports", "+", self.dropdown.xw(), y, False)
         self.remove = Button("Reports", "-", self.add.x() + self.add.width(), y, False)
-        self.change = Button("Reports", "Edit", self.remove.x() + self.remove.width(), y, False)
+        self.change = Button("Reports", "Edit", self.remove.xw(), y, False)
 
         self.add.clicked.connect(self.addOption)
         self.remove.clicked.connect(self.removeOption)
@@ -294,10 +302,10 @@ class SentenceGroup:
     def shift(self, x, y):
         self.checkbox.move(x, y)
         self.label.move(x + self.checkbox.width(), y)
-        self.dropdown.move(self.label.x() + self.label.width(), y)
-        self.add.move(self.dropdown.x() + self.dropdown.width(), y)
-        self.remove.move(self.add.x() + self.add.width(), y)
-        self.change.move(self.remove.x() + self.remove.width(), y)
+        self.dropdown.move(self.label.xw(), y)
+        self.add.move(self.dropdown.xw(), y)
+        self.remove.move(self.add.xw(), y)
+        self.change.move(self.remove.xw(), y)
 
     def delete(self):
         self.dropdown.options = None
@@ -675,13 +683,13 @@ class SheetBuilder:
         self.sentence_headers = ["Sentences 1", "Sentences 2", "Sentences 3", "Sentences 4"]
         self.class_headers = ["First", "Last", "Gender", "Report"]
 
-        self.add_dropdown = Dropdown("Builder", x=self.dropdown.x() + self.dropdown.width(), y = self.dropdown.y(), options=self.add_options)
-        self.remove_button = Button("Builder", "-", x=self.add_dropdown.x() + self.add_dropdown.width(), y=self.dropdown.y(), focusOnTab=False)
+        self.add_dropdown = Dropdown("Builder", x=self.dropdown.xw(), y = self.dropdown.y(), options=self.add_options)
+        self.remove_button = Button("Builder", "-", x=self.add_dropdown.xw(), y=self.dropdown.y(), focusOnTab=False)
         self.add_class_dialog = Multidialog("Builder", "Add Class", [{"name":"Class", "label":"Class", "type":"input"}, {"name":"Block", "label":"Block", "type":"input"}])
 
         self.veracross_button = Button("Builder", "Load from Veracross", x=window.width()/4, y=700)
-        self.excel_button = Button("Builder", "Save Excel", x=self.veracross_button.x()+self.veracross_button.width(), y=self.veracross_button.y())
-        self.sheets_button = Button("Builder", "Save Sheets", x=self.excel_button.x()+self.excel_button.width(), y=self.excel_button.y())
+        self.excel_button = Button("Builder", "Save Excel", x=self.veracross_button.xw(), y=self.veracross_button.y())
+        self.sheets_button = Button("Builder", "Save Sheets", x=self.excel_button.xw(), y=self.excel_button.y())
         self.dropdown.currentIndexChanged.connect(self.change_class)
 
         self.excel_button.clicked.connect(self.create_excel_sheet)
@@ -796,8 +804,9 @@ class SheetBuilder:
                         scheme_lb = self.add_scheme_dialog.elements["Lower Bound"]['object'].text().strip()
                         scheme_ub = self.add_scheme_dialog.elements["Upper Bound"]['object'].text().strip()
                         scheme_options = [o.strip() for o in self.add_scheme_dialog.elements['Options']['object'].text().split(",")]
+
                         idx_s = self.dropdown.findText("Grade Schemes")
-                        if idx_s == -1:
+                        if idx_s == -1: #scheme tab does not exist
                             self.options.append("Grade Schemes")
                             self.dropdown.addItem("Grade Schemes")
                             self.tables.append(Table("Builder", header=[scheme_name], x=0, y=30, w=window.width(), h=675, shown=True))
@@ -814,7 +823,6 @@ class SheetBuilder:
                             else:
                                 self.tables[idx_s].setItem(0, self.tables[idx_s].columnCount() - 1, QTableWidgetItem(scheme_ub))
                                 self.tables[idx_s].setItem(1, self.tables[idx_s].columnCount() - 1, QTableWidgetItem(scheme_lb))
-
                         self.add_scheme_dialog.refresh()
 
         self.add_dropdown.setCurrentIndex(0)
@@ -826,7 +834,6 @@ class SheetBuilder:
             self.tables.append(Table("Builder", header=self.sentence_headers, x=0, y=30, w=window.width(), h=675, shown=show))
             self.tables[-1].updateTable([[""] * 4] * 10)
             if show: self.dropdown.setCurrentIndex(self.dropdown.count() - 1)
-
 
 sheet_builder = SheetBuilder()
 
@@ -937,6 +944,7 @@ def setup():
         all_tabs = sheet.sheetnames
 
     grade_scheme_tabs = [tab for tab in all_tabs if tab.startswith("Grade Scheme")]
+    user_template_tabs = [tab for tab in all_tabs if tab.startswith("User Template")]
     class_tabs = [tab for tab in all_tabs if len(tab.split("-")) == 2]
     sentence_tabs = [tab for tab in all_tabs if tab.startswith("Sentences")]
 
@@ -953,6 +961,7 @@ def setup():
     class_dropdown.clear()
     class_dropdown.addItems([tab for tab in class_tabs])
     load_grades(grade_scheme_tabs)
+    load_templates(user_template_tabs)
     fill_class_data()
     class_dropdown.currentIndexChanged.connect(fill_class_data)
     student_dropdown.currentIndexChanged.connect(update_student)
@@ -987,9 +996,11 @@ class StatusCode(Enum):
     NONE = (0, "")
     SUCCESS = (1, "Success!")
     INVALID_PATH = (2, "Invalid filepath!")
+    PERMISSION_FAILURE = (3, "Invalid permissions to access document!")
     INVALID_URL = (3, "Invalid path URL!")
     INVALID_ID = (4, "Invalid path ID!")
     INTERNET_FAILURE = (5, "No internet connection!")
+
 
     def __init__(self, code, text):
         self.code = code
@@ -1007,10 +1018,11 @@ def validate_sheet(report):
         except openpyxl.utils.exceptions.InvalidFileException:
             return False, StatusCode.INVALID_PATH
     elif not os.path.isfile(report):
-        check_is = ["d", "https:", "spreadsheets", "http:", "docs.google.com", '']
+        check_is = ["d", "u", "1", "https:", "spreadsheets", "http:", "docs.google.com", '']
         check_starts = ["edit#"]
 
         report = [part for part in report.split('/') if not part in check_is and not part.startswith(*check_starts)]
+        print(report)
         if len(report) != 1:
             return False, StatusCode.INVALID_ID
         else:
@@ -1020,8 +1032,10 @@ def validate_sheet(report):
                 prefs.update_pref("report_sheet", report[0])
                 prefs.update_pref("is_web", True)
                 return True, sheet_data
-            except googleapiclient.errors.HttpError:
-                return False, StatusCode.INVALID_URL
+            except googleapiclient.errors.HttpError as e:
+                error_data = json.loads(e.content)['error']
+                if error_data['status'] == "PERMISSION_DENIED": return False, StatusCode.PERMISSION_FAILURE
+                elif error_data['status'] == "NOT_FOUND": return False, StatusCode.INVALID_URL
             except httplib2.ServerNotFoundError:
                 return False, StatusCode.INTERNET_FAILURE
     else:
@@ -1032,7 +1046,7 @@ def setup_sheet_from_dialog(report=None):
     global report_sheet
     global sheet
 
-    prompt_text = "Input Spreadsheet Link/Filepath:"
+    prompt_text = "Input Google Spreadsheet link or Excel path:"
     response = StatusCode.NONE
     valid = False
     while not valid:
@@ -1065,8 +1079,30 @@ def copy_report():
     cb.clear(mode=cb.Clipboard)
     cb.setText(text if len(text) > 0 else "")
 
+def load_templates(template_tabs):
+    global user_templates
+    user_templates = {}
+    if template_tabs:
+        for tab in template_tabs:
+            if prefs.get_pref("is_web"):
+                uts = get_sheet(prefs.get_pref('report_sheet'), "{}!A2:C1000".format(tab), mode='ROWS').get('values')
+            else:
+                uts = [row for row in sheet[tab].values]
+
+            for ut in uts:
+                if len(ut) >= 2:
+                    if len(ut[0].strip()) == 0 or len(ut[1].strip()) == 0: continue
+                    else: user_templates[ut[0]] = {"value":ut[1]}
+
+                    if len(ut) >= 3 and len(ut[2].strip()) > 0: user_templates[ut[0]]["class"] = ut[2]
+
+
+def display_help():
+    #todo: implement help menu lmao
+    pass
+
 load_sheet_file_button = Button("Setup", "Load Sheet (File)", window.width() / 3, window.height() / 3, False)
-load_sheet_url_button = Button("Setup", "Load Sheet (URL)", load_sheet_file_button.x() + load_sheet_file_button.width(), window.height() / 3, False)
+load_sheet_url_button = Button("Setup", "Load Sheet (URL)", load_sheet_file_button.xw(), window.height() / 3, False)
 
 create_report_sheet_button = Button("Setup", "Create Reports Sheet", window.width() / 3, load_sheet_file_button.y() + load_sheet_file_button.height(), False)
 open_setup_from_builder_button = Button("Builder", "Back", 0, 0, False)
@@ -1082,11 +1118,13 @@ generate_button.clicked.connect(generate_report)
 preset_button.clicked.connect(generate_report_from_preset)
 grade_button.clicked.connect(generate_report_from_grades)
 reload_button.clicked.connect(setup_existing)
-refresh_button.clicked.connect(update_sentences)
+reload_sentences_button.clicked.connect(update_sentences)
 reload_grade_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 add_sentence_button.clicked.connect(add_sentence)
 launch_report_sheet_button.clicked.connect(open_sheet)
 copy_button.clicked.connect(copy_report)
+
+help_button.clicked.connect(display_help)
 
 if __name__ == "__main__":
     if len(report_sheet) > 0: setup_existing()

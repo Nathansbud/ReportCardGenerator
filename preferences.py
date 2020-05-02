@@ -10,6 +10,7 @@ class Preferences:
         'format_unfinished',
         'unfinished_color',
         'class_portal',
+        'protected_set',
         'debug'
     ]
 

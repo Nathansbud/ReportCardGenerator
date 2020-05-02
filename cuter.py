@@ -8,6 +8,13 @@ from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCurs
 from sys import exit
 from preferences import prefs
 
+#possible that this is just hoRRENDOUS form
+def xw(obj): return obj.x() + obj.width()
+def yh(obj): return obj.y() + obj.height()
+QWidget.xw = xw
+QWidget.yh = yh
+#oh well, sue me
+
 class Application(QApplication):
     def __init__(self, name, useStyle=True):
         super(Application, self).__init__([])

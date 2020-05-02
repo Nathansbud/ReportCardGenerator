@@ -16,6 +16,7 @@
     "txt_color": "#000000",
     "lbl_color": "#ff0000"
   },
+  "protected_set": ["{name}", "{p1}", "{p2}", "{p3}", "{p4}", "{p5}", "#", "$", "%", "^", "`"],
   "debug": true
 }
 
