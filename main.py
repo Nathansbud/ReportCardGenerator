@@ -243,12 +243,15 @@ def replace_generics(fmt, recurse=False):
             fmt = fmt.replace(key, replace_set[key])
         #Error Check
         for mp, fp, tp in zip(Student.pronouns['M'], Student.pronouns['F'], Student.pronouns['T']):
+            #(?i) = case insensitive, \b = word boundary, (?<!\\) = negative look behind to check not starting with backslash
             if current_student.gender == "M":
-                fmt = re.sub(f'(?i)\\b{fp}\\b', mp, fmt)
+                fmt = re.sub(f'(?i)\\b(?<!\\\\){fp}\\b', mp, fmt)
             elif current_student.gender == "F":
-                fmt = re.sub(f'(?i)\\b{mp}\\b', fp, fmt)
+                fmt = re.sub(f'(?i)\\b(?<!\\\\){mp}\\b', fp, fmt)
             elif current_student.gender == "T":
-                fmt = re.sub(f'(?i)\\b({mp}|{fp})\\b', tp, fmt)
+                fmt = re.sub(f'(?i)\\b(?<!\\\\)({mp}|{fp})\\b', tp, fmt)
+
+        fmt = fmt.replace("\\", "")
 
         if current_student.gender == "T":
             fmt = fmt.replace("they is", "they are")
@@ -661,7 +664,7 @@ def generate_report():
     if idx is not False:
         for sentence in sentences:
             if sentence.checkbox.isChecked():
-                report_area.setText(report_area.toPlainText() + replace_generics(sentence.dropdown.currentText()) + " ")
+                report_area.setText(report_area.toPlainText() + replace_generics(sentence.dropdown.options[sentence.dropdown.currentIndex()]) + " ")
     report_area.repaint()
 
 def generate_report_from_preset():

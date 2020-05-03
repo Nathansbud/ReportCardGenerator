@@ -11,4 +11,5 @@ def is_macos(): return platform.system().startswith("Darwin")
 def is_hexcode(hex_str): return re.match(r"(?i)^#[0-9A-F]{6}$", hex_str) is not None
 
 if __name__ == "__main__":
-    print(is_hexcode("#FFffFf"))
+    pass
+
