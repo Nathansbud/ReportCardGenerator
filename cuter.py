@@ -1,12 +1,13 @@
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox,\
     QTableWidget, QTableWidgetItem, QHeaderView, QShortcut, QProgressDialog, QMainWindow, QDialog, QFormLayout, QDialogButtonBox,\
     QLineEdit, QGroupBox, QVBoxLayout, QTableView, QStackedWidget
-from PyQt5.QtCore import Qt, QEvent
-from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCursor
+from PyQt5.QtCore import Qt, QEvent, QRect
+from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCursor, QPainter, QPen
 
 
 from sys import exit
 from preferences import prefs
+from util import is_hexcode
 
 #possible that this is just hoRRENDOUS form
 def xw(obj): return obj.x() + obj.width()
@@ -404,6 +405,9 @@ class Multidialog(QDialog):
                 if isinstance(data, list): cb.addItems(data)
                 elif isinstance(data, str): cb.addItem(data)
             widget = cb
+        elif etype.lower() == "color":
+            pass
+
         return widget, label
 
     def initialize_settings(self):
@@ -435,6 +439,29 @@ class Multidialog(QDialog):
             elif isinstance(w, QComboBox):
                 if w.count() > 0: w.setCurrentIndex(0)
 
+
+class ColorBox(QWidget):
+    def __init__(self, screen, x, y, width, height, fill_hex="#ffffff"):
+        if screen in window.screens:
+            self.screen = screen
+            super(ColorBox, self).__init__(window.screens[screen])
+        else:
+            self.screen = None
+        self.setGeometry(x, y, width, height)
+        self.fill_hex = fill_hex
+        self.fill_color = QColor()
+
+        if is_hexcode(self.fill_hex):
+            self.fill_color.setNamedColor(self.fill_hex)
+
+    def paintEvent(self, QPaintEvent):
+        painter = QPainter()
+        painter.begin(self)
+        painter.setPen(self.fill_color)
+        painter.setBrush(self.fill_color)
+        print(self.x(), self.y(), self.width(), self.height())
+        painter.drawRect(self.x(), self.y(), self.width(), self.height())
+        painter.end()
 
 
 

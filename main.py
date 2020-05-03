@@ -11,7 +11,7 @@ import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QTableWidgetItem
 
-from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table, Multidialog
+from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table, Multidialog, ColorBox
 from cuter import app, window
 from grades import GradeSet, GradeType, GradeScheme, GradeScale, load_grades
 from preferences import prefs
@@ -1094,7 +1094,7 @@ def load_templates(template_tabs):
             if prefs.get_pref("is_web"):
                 uts = get_sheet(prefs.get_pref('report_sheet'), "{}!A2:C1000".format(tab), mode='ROWS').get('values')
             else:
-                uts = [row for row in sheet[tab].values]
+                uts = [[r if r is not None else "" for r in row] for row in sheet[tab].values]
 
             for ut in uts:
                 if len(ut) >= 2:
@@ -1145,6 +1145,5 @@ help_button.clicked.connect(display_help)
 if __name__ == "__main__":
     if len(report_sheet) > 0: setup_existing()
     app.exec()
-
 
 
