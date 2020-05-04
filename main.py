@@ -11,7 +11,7 @@ import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QTableWidgetItem
 
-from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table, Multidialog, ColorBox
+from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table, Multidialog, ColorBox, ColorButton
 from cuter import app, window
 from grades import GradeSet, GradeType, GradeScheme, GradeScale, load_grades
 from preferences import prefs
@@ -32,7 +32,6 @@ Todo:
         - Support for multi-paragraph reports
         - Fix multidialogs to be...not a freaking mess (especially initialize settings)
         - UI overhaul (it's friggin ugly)
-        - More robust templating, user-defined replacements (e.g. {u1} -> This Is My Unit Name)
     Low:
         - Use Sheets API file selector
         - oldText/cell saving, updating; Enter key tab down kinda buggy (hackish fix rn by doing enter behavior in validation functions)
@@ -1098,20 +1097,22 @@ def load_templates(template_tabs):
                 uts = get_sheet(prefs.get_pref('report_sheet'), "{}!A2:C1000".format(tab), mode='ROWS').get('values')
             else:
                 uts = [[r if r is not None else "" for r in row] for row in sheet[tab].values]
+            if uts:
+                for ut in uts:
+                    if len(ut) >= 2:
+                        if len(ut[0].strip()) == 0 or len(ut[1].strip()) == 0: continue
+                        else: user_templates[ut[0]] = {"value":ut[1]}
 
-            for ut in uts:
-                if len(ut) >= 2:
-                    if len(ut[0].strip()) == 0 or len(ut[1].strip()) == 0: continue
-                    else: user_templates[ut[0]] = {"value":ut[1]}
-
-                    if len(ut) >= 3 and len(ut[2].strip()) > 0: user_templates[ut[0]]["class"] = ut[2]
+                        if len(ut) >= 3 and len(ut[2].strip()) > 0: user_templates[ut[0]]["class"] = ut[2]
 
 
 def toggle_advanced(objs, force=None):
     if len(objs) > 0:
         for o in objs:
             o.setVisible(not o.isVisible() if force is None else force)
+            o.repaint()
         toggle_advanced_button.setText("Hide Advanced" if objs[0].isVisible() else "Show Advanced")
+        toggle_advanced_button.repaint() #repaint calls to fix a big on some laptops where this doesn't hide/show
         prefs.update_pref("advanced", objs[0].isVisible())
 
 def display_help():
@@ -1144,6 +1145,8 @@ toggle_advanced_button.clicked.connect(lambda: toggle_advanced([preset_dropdown,
 # reload_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
 
 help_button.clicked.connect(display_help)
+
+color_button = ColorButton("Preferences", 0, 0, 100, 100, "#ffffff")
 
 if __name__ == "__main__":
     if len(report_sheet) > 0: setup_existing()

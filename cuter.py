@@ -7,7 +7,7 @@ from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCurs
 
 from sys import exit
 from preferences import prefs
-from util import is_hexcode
+from util import is_hexcode, foreground_from_background
 
 #possible that this is just hoRRENDOUS form
 def xw(obj): return obj.x() + obj.width()
@@ -439,29 +439,36 @@ class Multidialog(QDialog):
             elif isinstance(w, QComboBox):
                 if w.count() > 0: w.setCurrentIndex(0)
 
-
-class ColorBox(QWidget):
-    def __init__(self, screen, x, y, width, height, fill_hex="#ffffff"):
+class ColorButton(QPushButton):
+    def __init__(self, screen, x, y, width, height, color, pref=None):
         if screen in window.screens:
             self.screen = screen
-            super(ColorBox, self).__init__(window.screens[screen])
+            super(ColorButton, self).__init__(window.screens[screen])
         else:
             self.screen = None
-        self.setGeometry(x, y, width, height)
-        self.fill_hex = fill_hex
-        self.fill_color = QColor()
 
-        if is_hexcode(self.fill_hex):
-            self.fill_color.setNamedColor(self.fill_hex)
+        self.color = color
+        self.updateColor(color)
+        self.clicked.connect(self.changeColor)
 
-    def paintEvent(self, QPaintEvent):
-        painter = QPainter()
-        painter.begin(self)
-        painter.setPen(self.fill_color)
-        painter.setBrush(self.fill_color)
-        print(self.x(), self.y(), self.width(), self.height())
-        painter.drawRect(self.x(), self.y(), self.width(), self.height())
-        painter.end()
+    def updateColor(self, v):
+        self.color = v
+        self.setText(self.color.upper())
+        self.setStyleSheet(f"ColorButton {{background:{self.color}; color: {foreground_from_background(self.color)};}}")
+
+    def changeColor(self):
+        returned_color = QColorDialog.getColor(title="Test Button")
+        if returned_color.isValid():
+            self.updateColor(returned_color.name())
+
+
+
+
+
+
+
+
+
 
 
 
