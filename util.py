@@ -11,6 +11,11 @@ def is_macos(): return platform.system().startswith("Darwin")
 def is_windows(): return platform.system().startswith("Windows")
 def is_windows8(): return platform.platform().startswith("Windows-8")
 def is_hexcode(hex_str): return re.match(r"(?i)^#[0-9A-F]{6}$", hex_str) is not None
+def is_darkmode():
+    if is_macos():
+        from Foundation import NSUserDefaults
+        return NSUserDefaults.standardUserDefaults().stringForKey_('AppleInterfaceStyle') == "Dark"
+    else: return False
 
 #https://stackoverflow.com/a/11868398/11584108
 def foreground_from_background(hex_str):

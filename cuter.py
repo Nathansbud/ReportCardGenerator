@@ -46,7 +46,6 @@ class Window(QMainWindow):
         self.screens = {}
 
         self.addScreen("Reports", Screen("Report Builder"))
-        self.addScreen("Preferences", Screen("Preferences"))
         self.addScreen("Grades", Screen("Grade Editor"))
         self.addScreen("Setup", Screen("Report Sheet Setup"))
         self.addScreen("Builder", Screen("Report Sheet Builder"))
@@ -379,7 +378,6 @@ class Multidialog(QDialog):
         self.main_layout = QVBoxLayout()
         self.group_box = QGroupBox()
         self.first_launch = True
-
         layout = QFormLayout()
         for f in self.form_set:
             if not 'name' in f: continue
@@ -407,6 +405,7 @@ class Multidialog(QDialog):
         self.main_layout.addWidget(self.group_box)
         self.main_layout.addWidget(self.button_box)
         self.setLayout(self.main_layout)
+        self.setFixedSize(self.main_layout.sizeHint())
 
     def get_element(self, etype, settings, data, label):
         widget = None
@@ -466,11 +465,3 @@ class Multidialog(QDialog):
             if isinstance(w, QLineEdit): w.setText("")
             elif isinstance(w, QComboBox):
                 if w.count() > 0: w.setCurrentIndex(0)
-
-
-
-
-
-
-
-

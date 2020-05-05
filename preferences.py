@@ -1,6 +1,6 @@
 import os.path
 import json
-from util import is_macos
+from util import is_macos, is_darkmode
 
 class Preferences:
     pref_file = os.path.join(os.getcwd(), "prefs", "config.json")
@@ -13,12 +13,6 @@ class Preferences:
         'protected_set',
         'debug'
     ]
-
-    if is_macos():
-        from Foundation import NSUserDefaults
-        theme = NSUserDefaults.standardUserDefaults().stringForKey_('AppleInterfaceStyle')
-
-
 
     def __init__(self):
         with open(Preferences.defaults, "r+") as df:
@@ -49,10 +43,10 @@ class Preferences:
             json.dump(self.prefs, pf)
 
     def get_default_pref(self, key):
-        return self.defaults[key]
+        if key in self.defaults: return self.defaults[key]
+        return None
 
     def get_default_theme(self):
-        return self.defaults['dark_theme'] if is_macos() and Preferences.theme == 'Dark' else self.defaults['light_theme']
-
+        return self.defaults['dark_theme'] if is_darkmode() else self.defaults['light_theme']
 
 prefs = Preferences()
