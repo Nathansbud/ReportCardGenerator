@@ -329,24 +329,40 @@ class Checkbox(QCheckBox):
         self.move(x, y)
         self.show()
 
-class ColorSelector(QColorDialog):
-    def __init__(self, screen, corresponds=None):
+class ColorButton(QPushButton):
+    def __init__(self, screen=None, x=None, y=None, color=None, pref=None):
         if screen in window.screens:
             self.screen = screen
-            super(ColorSelector, self).__init__(window.screens[screen])
+            super(ColorButton, self).__init__(window.screens[screen])
         else:
             self.screen = None
-        self.corresponds = corresponds
+            super(ColorButton, self).__init__()
 
-    def updateColor(self, title, color_pref):
-        color = QColorDialog.getColor(title=title)
-        if color.isValid() and prefs.has_pref(color_pref):
-            prefs.update_pref(color_pref, color.name())
-            QApplication.instance().changeStyle()
+        if x and y: self.move(x, y)
+        self.pref = pref
+        self.color = color
+        if color:
+            self.updateColor(color)
+        self.clicked.connect(self.changeColor)
+
+    def updateColor(self, v):
+        self.color = v
+        self.setText(self.color.upper())
+        self.setStyleSheet(f"ColorButton {{background:{self.color}; color: {foreground_from_background(self.color)};}}")
+
+    def saveColor(self):
+        if self.pref and prefs.has_pref(self.pref):
+            prefs.update_pref(self.pref, self.color)
+        app.changeStyle()
+
+    def changeColor(self):
+        returned_color = QColorDialog.getColor(title="Test Button")
+        if returned_color.isValid():
+            self.updateColor(returned_color.name())
 
 #Mine, but layout stuff adapted from https://pythonspot.com/pyqt5-form-layout/
 class Multidialog(QDialog):
-    def __init__(self, screen, title, form_set):
+    def __init__(self, screen, title, form_set, buttons=None, button_pressed=lambda:None):
 
         if screen in window.screens:
             self.screen = screen
@@ -354,9 +370,7 @@ class Multidialog(QDialog):
         else:
             self.screen = None
 
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        self.button_box.accepted.connect(self.accept)
-        self.button_box.rejected.connect(self.reject)
+
 
         self.form_set = form_set
         self.elements = {}
@@ -365,6 +379,7 @@ class Multidialog(QDialog):
         self.main_layout = QVBoxLayout()
         self.group_box = QGroupBox()
         self.first_launch = True
+
         layout = QFormLayout()
         for f in self.form_set:
             if not 'name' in f: continue
@@ -380,7 +395,14 @@ class Multidialog(QDialog):
 
             layout.addRow(self.elements[f['name']]['label'], self.elements[f['name']]['object'])
         self.initialize_settings()
-
+        if not buttons:
+            self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            self.button_box.accepted.connect(self.accept)
+            self.button_box.rejected.connect(self.reject)
+        else:
+            self.button_box = QDialogButtonBox(QDialogButtonBox.Reset | QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            #this needs some work
+            
         self.group_box.setLayout(layout)
         self.main_layout.addWidget(self.group_box)
         self.main_layout.addWidget(self.button_box)
@@ -406,8 +428,14 @@ class Multidialog(QDialog):
                 elif isinstance(data, str): cb.addItem(data)
             widget = cb
         elif etype.lower() == "color":
-            pass
-
+            cb = ColorButton()
+            if settings and 'pref' in settings:
+                cb.pref = settings['pref']
+                cb.color = prefs.get_pref(cb.pref)
+            elif 'color' in settings:
+                cb.color = settings['color']
+            cb.updateColor(cb.color)
+            widget = cb
         return widget, label
 
     def initialize_settings(self):
@@ -438,32 +466,6 @@ class Multidialog(QDialog):
             if isinstance(w, QLineEdit): w.setText("")
             elif isinstance(w, QComboBox):
                 if w.count() > 0: w.setCurrentIndex(0)
-
-class ColorButton(QPushButton):
-    def __init__(self, screen, x, y, width, height, color, pref=None):
-        if screen in window.screens:
-            self.screen = screen
-            super(ColorButton, self).__init__(window.screens[screen])
-        else:
-            self.screen = None
-
-        self.color = color
-        self.updateColor(color)
-        self.clicked.connect(self.changeColor)
-
-    def updateColor(self, v):
-        self.color = v
-        self.setText(self.color.upper())
-        self.setStyleSheet(f"ColorButton {{background:{self.color}; color: {foreground_from_background(self.color)};}}")
-
-    def changeColor(self):
-        returned_color = QColorDialog.getColor(title="Test Button")
-        if returned_color.isValid():
-            self.updateColor(returned_color.name())
-
-
-
-
 
 
 

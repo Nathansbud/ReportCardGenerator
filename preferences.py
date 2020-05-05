@@ -18,16 +18,16 @@ class Preferences:
         from Foundation import NSUserDefaults
         theme = NSUserDefaults.standardUserDefaults().stringForKey_('AppleInterfaceStyle')
 
-    def __init__(self):
-        def get_default_theme(d):
-            return d['dark_theme'] if is_macos() and Preferences.theme == 'Dark' else d['light_theme']
 
+
+    def __init__(self):
+        with open(Preferences.defaults, "r+") as df:
+            self.defaults = json.load(df)
         if not os.path.isfile(Preferences.pref_file):
-            with open(Preferences.defaults, 'r+') as df, open(Preferences.pref_file, 'w+') as pf:
-                load_defaults = json.load(df)
-                build_prefs = get_default_theme(load_defaults)
+            with open(Preferences.pref_file, 'w+') as pf:
+                build_prefs = self.get_default_theme()
                 for pref in Preferences.copy_list:
-                    build_prefs[pref] = load_defaults[pref]
+                    build_prefs[pref] = self.defaults[pref]
                 json.dump(build_prefs, pf)
         with open(Preferences.pref_file, "r+") as pf:
             self.prefs = json.load(pf)
@@ -47,5 +47,12 @@ class Preferences:
     def save_prefs(self):
         with open(Preferences.pref_file, "w+") as pf:
             json.dump(self.prefs, pf)
+
+    def get_default_pref(self, key):
+        return self.defaults[key]
+
+    def get_default_theme(self):
+        return self.defaults['dark_theme'] if is_macos() and Preferences.theme == 'Dark' else self.defaults['light_theme']
+
 
 prefs = Preferences()

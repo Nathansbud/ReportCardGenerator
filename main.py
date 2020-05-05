@@ -11,7 +11,7 @@ import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QTableWidgetItem
 
-from cuter import Button, Label, Dropdown, Textarea, ColorSelector, Checkbox, Table, Multidialog, ColorBox, ColorButton
+from cuter import Button, Label, Dropdown, Textarea, Checkbox, Table, Multidialog, ColorButton
 from cuter import app, window
 from grades import GradeSet, GradeType, GradeScheme, GradeScale, load_grades
 from preferences import prefs
@@ -93,19 +93,39 @@ user_templates = {}
 class_label = Label("Reports", "Class: ", window.width() / 2.5, 15)
 class_dropdown = Dropdown("Reports", class_label.xw(), class_label.y(), [tab for tab in class_tabs])
 
-student_label = Label("Reports", "Name: ", 50, 75)
-student_dropdown = Dropdown("Reports", student_label.xw(), student_label.y(), [])
+student_dropdown = Dropdown("Reports", 50, 75, [])
 student_dropdown.setObjectName("StudentDropdown")
-
 
 open_grades_from_reports_button = Button("Reports", "Grades", student_dropdown.xw(), student_dropdown.y(), False)
 add_sentence_button = Button("Reports", "Add Sentence", open_grades_from_reports_button.xw(), student_dropdown.y(), False)
 reload_all_button = Button("Reports", "Reload", add_sentence_button.xw(), add_sentence_button.y(), False)
 
-launch_report_sheet_button = Button("Reports", "Open Reports", reload_all_button.xw(), reload_all_button.y(), False)
-toggle_advanced_button = Button("Reports", "Toggle Advanced", launch_report_sheet_button.xw(), launch_report_sheet_button.y(), False)
+launch_report_sheet_button = Button("Reports", "Launch Sheet", reload_all_button.xw(), reload_all_button.y(), False)
+change_colors_button = Button("Reports", "Change Colors", launch_report_sheet_button.xw(), launch_report_sheet_button.y(), False)
+toggle_advanced_button = Button("Reports", "Toggle Advanced", change_colors_button.xw(), change_colors_button.y(), False)
 help_button = Button("Reports", "Help", toggle_advanced_button.xw(), toggle_advanced_button.y(), False)
 
+
+color_multidialog = Multidialog("Reports", "Change Colors", [{"name":"Background", "label":"Background: ", "type":"color", "settings":{"pref":"bg_color"}},
+                                                             {"name":"Text", "label":"Text: ", "type":"color", "settings":{"pref":"txt_color"}},
+                                                             {"name":"Label", "label":"Labels: ", "type":"color", "settings":{"pref":"lbl_color"}}], buttons=True)
+
+change_colors_button.clicked.connect(color_multidialog.exec)
+def colorDialog(b):
+    global color_multidialog
+    if b.text() == "OK":
+        for b in color_multidialog.elements.values():
+            b['object'].saveColor()
+        color_multidialog.close()
+    elif b.text() == "Cancel":
+        for b in color_multidialog.elements.values():
+            b['object'].updateColor(prefs.get_pref(b['object'].pref))
+        color_multidialog.close()
+    elif b.text() == "Reset":
+        for b in color_multidialog.elements.values():
+            b['object'].updateColor(prefs.get_default_theme()[b['object'].pref])
+
+color_multidialog.button_box.clicked.connect(colorDialog)
 
 preset_dropdown = Dropdown("Reports", student_dropdown.x(), student_dropdown.yh(), [], False)
 preset_button = Button("Reports", "Generate (Preset)", preset_dropdown.xw(), preset_dropdown.y(), False)
@@ -119,35 +139,16 @@ submit_button = Button("Reports", "Submit", window.width()/2 - 20, 700)
 
 copy_button = Button("Reports", "Copy Report", submit_button.xw(), submit_button.y(), False)
 
-color_selector = ColorSelector("Reports")
-
-open_preferences_from_reports_button = Button("Reports", "Preferences", 0, 0, False)
-open_preferences_from_reports_button.move(window.width() - open_preferences_from_reports_button.width(), 0)
-
-open_reports_from_preferences_button = Button("Preferences", "Open Reports", window.width() - 50, 0, False)
-open_reports_from_preferences_button.move(window.width() - open_reports_from_preferences_button.width(), 0)
-
-open_reports_from_grades_button = Button("Grades", "Open Reports", window.width() - 50, 0, False)
-open_reports_from_grades_button.move(window.width() - open_reports_from_preferences_button.width(), 0)
+open_reports_from_grades_button = Button("Grades", "Reports", window.width() - 50, 0, False)
+open_reports_from_grades_button.move(window.width() - open_reports_from_grades_button.width(), 0)
 
 open_reports_from_setup_button = Button("Setup", "Back", 0, 0, False, shown=False)
 
 open_grades_from_reports_button.clicked.connect(lambda: window.switchScreen("Grades"))
-open_preferences_from_reports_button.clicked.connect(lambda: window.switchScreen("Preferences"))
 open_setup_from_report_button.clicked.connect(lambda: window.switchScreen("Setup"))
 
 open_reports_from_grades_button.clicked.connect(lambda: window.switchScreen("Reports"))
-open_reports_from_preferences_button.clicked.connect(lambda: window.switchScreen("Reports"))
 open_reports_from_setup_button.clicked.connect(lambda: window.switchScreen("Reports"))
-
-
-background_color_button = Button("Preferences", "BG Color", window.width() - 150, open_reports_from_preferences_button.yh(), False)
-text_color_button = Button("Preferences", "Text Color", window.width() - 150, background_color_button.yh(), False)
-label_color_button = Button("Preferences", "Label Color", window.width() - 150, text_color_button.yh(), False)
-
-background_color_button.clicked.connect(lambda: color_selector.updateColor("Background Color", "bg_color"))
-text_color_button.clicked.connect(lambda: color_selector.updateColor("Text Color", "txt_color"))
-label_color_button.clicked.connect(lambda: color_selector.updateColor("Label Color", "lbl_color"))
 
 # UI Cleanup, might bring back
 # reload_sentences_button = Button("Reports", "Sentences", reload_all_button.xw(), reload_all_button.y(), False)
@@ -1140,13 +1141,7 @@ add_sentence_button.clicked.connect(add_sentence)
 launch_report_sheet_button.clicked.connect(open_sheet)
 copy_button.clicked.connect(copy_report)
 toggle_advanced_button.clicked.connect(lambda: toggle_advanced([preset_dropdown,preset_button,grade_button,open_setup_from_report_button]))
-# Attempting to clean up UI, might bring back
-# reload_sentences_button.clicked.connect(update_sentences)
-# reload_schemes_button.clicked.connect(lambda: load_grades(grade_scheme_tabs))
-
 help_button.clicked.connect(display_help)
-
-color_button = ColorButton("Preferences", 0, 0, 100, 100, "#ffffff")
 
 if __name__ == "__main__":
     if len(report_sheet) > 0: setup_existing()
