@@ -12,9 +12,9 @@
   },
   "light_theme": {
     "is_dark": false,
-    "bg_color": "#d3d3d3",
+    "bg_color": "#e3e3e3",
     "txt_color": "#000000",
-    "lbl_color": "#ff0000"
+    "lbl_color": "#000000"
   },
   "protected_set": ["{name}", "{p1}", "{p2}", "{p3}", "{p4}", "{p5}", "#", "$", "%", "^", "`"],
   "advanced": false,

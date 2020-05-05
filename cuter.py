@@ -7,7 +7,7 @@ from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCurs
 
 from sys import exit
 from preferences import prefs
-from util import is_hexcode, foreground_from_background
+from util import *
 
 #possible that this is just hoRRENDOUS form
 def xw(obj): return obj.x() + obj.width()
@@ -134,7 +134,7 @@ class Label(QLabel):
         self.setupFont()
         if shown: self.show()
 
-    def setupFont(self, size=24, font_family="Arial"):
+    def setupFont(self, size=12 if is_windows() else 24, font_family="Arial"):
         self.setFont(QFont(font_family, size, QFont.Bold))
 
 class Dropdown(QComboBox):
@@ -249,7 +249,7 @@ class Table(QTableWidget):
         vertical_header = self.verticalHeaderItem(row)
         if horizontal_header is not None and isinstance(self.accepted, dict) and horizontal_header.text() in self.accepted:
             if 'whitelist' in self.accepted[horizontal_header.text()]:
-                if not item.text() in self.accepted[horizontal_header.text()]['whitelist'] and item.text() is not "":
+                if not item.text() in self.accepted[horizontal_header.text()]['whitelist'] and item.text() != "":
                     item.setText(self.oldText)
             if 'blacklist' in self.accepted[horizontal_header.text()]:
                 if item.text() in self.accepted[horizontal_header.text()]['blacklist']:

@@ -127,7 +127,8 @@ def colorDialog(b):
 
 color_multidialog.button_box.clicked.connect(colorDialog)
 
-preset_dropdown = Dropdown("Reports", student_dropdown.x(), student_dropdown.yh(), [], False)
+#windows has no padding, macOS does
+preset_dropdown = Dropdown("Reports", student_dropdown.x(), (1 if not is_windows() else 1.3)*student_dropdown.height()+student_dropdown.y(), [], False)
 preset_button = Button("Reports", "Generate (Preset)", preset_dropdown.xw(), preset_dropdown.y(), False)
 grade_button = Button("Reports", "Generate (Grades)", preset_button.xw(), preset_dropdown.y(), False)
 
@@ -299,13 +300,16 @@ class SentenceGroup:
         self.dropdown = Dropdown("Reports", self.label.xw(), y, [replace_generics(option) for option in options])
         self.dropdown.options = options
 
-        self.add = Button("Reports", "+", self.dropdown.xw(), y, False)
-        self.remove = Button("Reports", "-", self.add.x() + self.add.width(), y, False)
-        self.change = Button("Reports", "Edit", self.remove.xw(), y, False)
+        self.add_button = Button("Reports", "+", self.dropdown.xw(), y, False)
+        if is_windows(): self.add_button.setMaximumWidth(30)
+        self.remove_button = Button("Reports", "-", self.add_button.x() + self.add_button.width(), y, False)
+        if is_windows(): self.remove_button.setMaximumWidth(30)
+        self.edit_button = Button("Reports", "Edit", self.remove_button.xw(), y, False)
+        if is_windows(): self.edit_button.setMaximumWidth(60)
 
-        self.add.clicked.connect(self.addOption)
-        self.remove.clicked.connect(self.removeOption)
-        self.change.clicked.connect(self.editOption)
+        self.add_button.clicked.connect(self.addOption)
+        self.remove_button.clicked.connect(self.removeOption)
+        self.edit_button.clicked.connect(self.editOption)
 
         self.manual_delete = False
 
@@ -313,18 +317,18 @@ class SentenceGroup:
         self.checkbox.move(x, y)
         self.label.move(x + self.checkbox.width(), y)
         self.dropdown.move(self.label.xw(), y)
-        self.add.move(self.dropdown.xw(), y)
-        self.remove.move(self.add.xw(), y)
-        self.change.move(self.remove.xw(), y)
+        self.add_button.move(self.dropdown.xw(), y)
+        self.remove_button.move(self.add_button.xw(), y)
+        self.edit_button.move(self.remove_button.xw(), y)
 
     def delete(self):
         self.dropdown.options = None
         self.dropdown.deleteLater()
         self.label.deleteLater()
         self.checkbox.deleteLater()
-        self.add.deleteLater()
-        self.remove.deleteLater()
-        self.change.deleteLater()
+        self.add_button.deleteLater()
+        self.remove_button.deleteLater()
+        self.edit_button.deleteLater()
 
     def addOption(self):
         text, ok = QInputDialog(window.getScreen("Reports")).getText(window.getScreen("Reports"), "Add Option", "Sentence", QLineEdit.Normal, "")
