@@ -85,10 +85,10 @@ class_students = []
 preset_list = {}
 sentences = []  # Should be populated with SentenceGroup elements
 grade_scheme_tabs = []
+user_template_tabs = []
 grade_rules = []
 user_templates = {}
-
-
+template_multidialog = None #defined in setup_template_multidialog
 
 class_label = Label("Reports", "Class: ", window.width() / 2.5, 15)
 class_dropdown = Dropdown("Reports", class_label.xw(), class_label.y(), [tab for tab in class_tabs])
@@ -125,14 +125,55 @@ def colorDialog(b):
         for b in color_multidialog.elements.values():
             b['object'].updateColor(prefs.get_default_theme()[b['object'].pref])
 
-color_multidialog.button_box.clicked.connect(colorDialog)
+def setup_template_multidialog():
+    global template_multidialog
+    global user_templates
 
+    template_multidialog = Multidialog("Reports", "Edit Templates", [{"name": f"t{i + 1}", "label": t, "type": "input", "data": user_templates[t]['value']} for i, t in enumerate(user_templates)])
+    template_multidialog.button_box.clicked.connect(template_dialog_button_behavior)
+    template_multidialog.exec()
+
+def template_dialog_button_behavior(b):
+    global template_multidialog
+    global user_templates
+    global user_template_tabs
+    global sheet
+    global report_sheet
+
+    if b.text() == "OK":
+        for u in template_multidialog.elements.values():
+            if u['label'].text() in user_templates:
+                user_templates[u['label'].text()]['value'] = u['object'].text()
+            else:
+                user_templates[u['label'].text()] = {"value":""}
+        if not user_template_tabs:
+            if prefs.get_pref("is_web"):
+                write_sheet(report_sheet, option={"operation":"add", "tabs":["User Templates"]})
+            else:
+                sheet.create_sheet(title="User Templates")
+                sheet.save(prefs.get_pref("report_sheet"))
+
+        write_templates = [[t, user_templates[t]['value'] if 'value' in user_templates[t] else "", user_templates[t]['class'] if 'class' in user_templates[t] else ""] for t in user_templates]
+        write_templates.insert(0, ["Template", "Replace", "Apply"])
+
+        if prefs.get_pref("is_web"):
+            Thread(target=lambda: write_sheet(report_sheet, write_templates, f"User Templates!A1:C{2+len(user_templates.keys())}", option={"operation":"write"})).start()
+        else:
+            for i in range(len(write_templates)):
+                sheet['User Templates'].cell(row=i+1, column=1).value = write_templates[i][0]
+                sheet['User Templates'].cell(row=i+1, column=2).value = write_templates[i][1]
+                sheet['User Templates'].cell(row=i+1, column=3).value = write_templates[i][2]
+            sheet.save(prefs.get_pref("report_sheet"))
+
+color_multidialog.button_box.clicked.connect(colorDialog)
 #windows has no padding, macOS does
 preset_dropdown = Dropdown("Reports", student_dropdown.x(), (1 if not is_windows() else 1.3)*student_dropdown.height()+student_dropdown.y(), [], False)
 preset_button = Button("Reports", "Generate (Preset)", preset_dropdown.xw(), preset_dropdown.y(), False)
 grade_button = Button("Reports", "Generate (Grades)", preset_button.xw(), preset_dropdown.y(), False)
 
 open_setup_from_report_button = Button("Reports", "Sheet Setup", grade_button.xw(), grade_button.y(), False)
+show_templates_button = Button("Reports", "Edit Templates", open_setup_from_report_button.xw(), open_setup_from_report_button.y(), False)
+show_templates_button.clicked.connect(setup_template_multidialog)
 
 generate_button = Button("Reports", "Generate", window.width()/2 - 20, 410)
 report_area = Textarea("Reports", "", 0, 450, window.width(), 250)
@@ -237,7 +278,7 @@ def replace_generics(fmt, recurse=False):
             for t, v in user_templates.items():
                 if not 'class' in v or class_dropdown.currentText().startswith(v['class']):
                     tg = replace_generics(v['value'], True)
-                    replace_set[t] = tg
+                    replace_set[t.lower()] = tg
 
         fmt = fmt.split(Preset.prefix['grade'])[0].split(Preset.prefix['linear'])[0].strip()
         for key in replace_set:
@@ -946,6 +987,7 @@ def setup():
     global class_tabs
     global sentence_tabs
     global grade_scheme_tabs
+    global user_template_tabs
     global class_students
     global preset_list
     global grade_rules
@@ -1095,13 +1137,14 @@ def copy_report():
 
 def load_templates(template_tabs):
     global user_templates
+
     user_templates = {}
     if template_tabs:
         for tab in template_tabs:
             if prefs.get_pref("is_web"):
                 uts = get_sheet(prefs.get_pref('report_sheet'), "{}!A2:C1000".format(tab), mode='ROWS').get('values')
             else:
-                uts = [[r if r is not None else "" for r in row] for row in sheet[tab].values]
+                uts = [[r if r is not None else "" for r in row] for row in sheet[tab].values][1:]
             if uts:
                 for ut in uts:
                     if len(ut) >= 2:
@@ -1109,6 +1152,7 @@ def load_templates(template_tabs):
                         else: user_templates[ut[0]] = {"value":ut[1]}
 
                         if len(ut) >= 3 and len(ut[2].strip()) > 0: user_templates[ut[0]]["class"] = ut[2]
+
 
 
 def toggle_advanced(objs, force=None):

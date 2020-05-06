@@ -369,8 +369,6 @@ class Multidialog(QDialog):
         else:
             self.screen = None
 
-
-
         self.form_set = form_set
         self.elements = {}
         self.title = title

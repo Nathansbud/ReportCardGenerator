@@ -73,6 +73,15 @@ def write_sheet(sheet, values, r='', mode="ROWS", tab_id=None, option=None):
                             "inheritFromBefore": True if option['start'] > 0 else False
                         },
                     }}).execute()
+        elif option['operation'] == "add":
+            if "tabs" in option:
+                service.spreadsheets().batchUpdate(spreadsheetId=sheet, body={"requests":{
+                [{"addSheet": {
+                    "properties": {
+                        "title": t
+                    }
+                }} for t in tabs]}})
+
 
 def make_report_sheet(title=None, tabs=None):
     if not tabs: tabs = []
