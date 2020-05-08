@@ -271,7 +271,8 @@ def replace_generics(fmt, recurse=False):
             "{p2}":ps[1], "$":ps[1],
             "{p3}":ps[2], "%":ps[2],
             "{p4}":ps[3], "^":ps[3],
-            "{p5}":ps[4], "`":ps[4]
+            "{p5}":ps[4], "`":ps[4],
+            "{np}":"<br><br>"
         }
 
         if not recurse:
