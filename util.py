@@ -1,6 +1,7 @@
 from math import floor
 import platform
 import re
+import darkdetect
 
 def index_to_column(idx):
     major = chr(65 + floor(idx / 26 - 1)) if idx > 25 else ""
@@ -11,11 +12,7 @@ def is_macos(): return platform.system().startswith("Darwin")
 def is_windows(): return platform.system().startswith("Windows")
 def is_windows8(): return platform.platform().startswith("Windows-8")
 def is_hexcode(hex_str): return re.match(r"(?i)^#[0-9A-F]{6}$", hex_str) is not None
-def is_darkmode():
-    if is_macos():
-        from Foundation import NSUserDefaults
-        return NSUserDefaults.standardUserDefaults().stringForKey_('AppleInterfaceStyle') == "Dark"
-    else: return False
+def is_darkmode(): return darkdetect.isDark() if is_macos() else False
 
 #https://stackoverflow.com/a/11868398/11584108
 def foreground_from_background(hex_str):

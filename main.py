@@ -27,6 +27,7 @@ Todo:
         - GUI so that user doesn't have to deal with weird text macros
         - Grade scheme tab rework
         - Support for multi-paragraph reports (rn ~10 sentence dropdowns in the limit...)
+            - Use a scrollable widget area, render SentenceGroups in it as part of a layout
     Medium:
         - updateTable desperately needs an overhaul
         - Format student dropdown for unfinished reports
