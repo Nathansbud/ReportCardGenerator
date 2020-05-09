@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox,\
     QTableWidget, QTableWidgetItem, QHeaderView, QShortcut, QProgressDialog, QMainWindow, QDialog, QFormLayout, QDialogButtonBox,\
-    QLineEdit, QGroupBox, QVBoxLayout, QTableView, QStackedWidget, QToolButton
+    QLineEdit, QGroupBox, QVBoxLayout, QTableView, QStackedWidget, QToolButton, QScrollArea
 from PyQt5.QtCore import Qt, QEvent, QRect
 from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCursor, QPainter, QPen
 
@@ -477,4 +477,25 @@ class ArrowButton(QToolButton):
         if width > 0 and height > 0: self.setGeometry(x, y, width, height)
         else: self.move(x, y)
 
+        self.show()
+
+class ScrollBox(QScrollArea):
+    def __init__(self, screen, x, y, width, height, widgets):
+        if screen in window.screens:
+            self.screen = screen
+            super(ScrollBox, self).__init__(window.screens[screen])
+        else:
+            self.screen = None
+
+        self.body = QWidget()
+        self.vbox = QVBoxLayout()
+
+        for w in widgets:
+            self.vbox.addWidget(w)
+        self.body.setLayout(self.vbox)
+
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setWidget(self.body)
+        self.setGeometry(x, y, width, height)
         self.show()

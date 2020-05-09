@@ -9,9 +9,9 @@ import googleapiclient.errors
 import httplib2
 import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QTableWidgetItem
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QTableWidgetItem, QWidget
 
-from cuter import Button, Label, Dropdown, Textarea, Checkbox, Table, Multidialog, ColorButton, ArrowButton
+from cuter import Button, Label, Dropdown, Textarea, Checkbox, Table, Multidialog, ColorButton, ArrowButton, ScrollBox
 from cuter import app, window
 from grades import GradeSet, GradeType, GradeScheme, GradeScale, load_grades
 from preferences import prefs
@@ -329,14 +329,19 @@ def make_lowercase_generics(fmt):
     for match in matches: substr = substr[0:match[0]] + fmt[match[0]:match[1]].lower() + fmt[match[1]:]
     return substr
 
-class SentenceGroup:
+class SentenceGroup(QWidget):
     dialog = QInputDialog(window.getScreen("Reports"))
     dialog.setOption(QInputDialog.UseListViewForComboBoxItems)
-    def __init__(self, label, x, y, options, index):
+    def __init__(self, label, x=None, y=None, options=None, index=None, in_layout=False):
+        super().__init__()
         self.index = index
-
-        self.x = x
-        self.y = y
+        #
+        # if not in_layout:
+        #     self.x = x
+        #     self.y = y
+        # else:
+        #     self.x = self.x()
+        #     self.y = self.y()
 
         self.arrow_up = ArrowButton("Reports", x, y, 10, 10, "UP")
         self.arrow_down = ArrowButton("Reports", x, self.arrow_up.yh(), 10, 10, "DOWN")
@@ -359,6 +364,7 @@ class SentenceGroup:
         self.remove_button.clicked.connect(self.removeOption)
         self.edit_button.clicked.connect(self.editOption)
 
+        # self.setGeometry(x, y, self.edit_button.xw() - self.arrow_up.width(), self.arrow_down.yh() - self.arrow_up.y())
         self.manual_delete = False
 
     def shift(self, x, y):
@@ -488,11 +494,8 @@ class SentenceGroup:
                 sentences[pos + 1].formatDropdown()
 
                 def refresh():
-                    if prefs.get_pref("is_web"):
-                        self.write_sentences(bll=lb)
-                        sentences[pos+1].write_sentences(bll=lt)
-                    else:
-                        print("Excel shift up LUL")
+                    self.write_sentences(bll=lb)
+                    sentences[pos+1].write_sentences(bll=lt)
 
                 Thread(target=refresh).start()
 
@@ -510,11 +513,8 @@ class SentenceGroup:
                 sentences[pos-1].formatDropdown()
 
                 def refresh():
-                    if prefs.get_pref("is_web"):
-                        self.write_sentences(bll=lt)
-                        sentences[pos-1].write_sentences(bll=lb)
-                    else:
-                        print("Excel shift up LUL")
+                    self.write_sentences(bll=lt)
+                    sentences[pos-1].write_sentences(bll=lb)
 
                 Thread(target=refresh).start()
 
@@ -1257,6 +1257,9 @@ copy_button.clicked.connect(copy_report)
 toggle_advanced_button.clicked.connect(lambda: toggle_advanced(advanced_set))
 help_button.clicked.connect(display_help)
 
+
+# tests = [SentenceGroup(str(i), x = 10, y=preset_dropdown.yh()+10*i, options=["skrt", "skyaaat"], index=i) for i in range(5)]
+# scroll_box = ScrollBox("Reports", preset_dropdown.x(), preset_dropdown.yh(), help_button.xw(), generate_button.y() - preset_dropdown.yh(), tests)
 
 if __name__ == "__main__":
     if len(report_sheet) > 0: setup_existing()
