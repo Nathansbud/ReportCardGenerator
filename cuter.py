@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox,\
     QTableWidget, QTableWidgetItem, QHeaderView, QShortcut, QProgressDialog, QMainWindow, QDialog, QFormLayout, QDialogButtonBox,\
-    QLineEdit, QGroupBox, QVBoxLayout, QTableView, QStackedWidget
+    QLineEdit, QGroupBox, QVBoxLayout, QTableView, QStackedWidget, QToolButton
 from PyQt5.QtCore import Qt, QEvent, QRect
 from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCursor, QPainter, QPen
 
@@ -362,7 +362,6 @@ class ColorButton(QPushButton):
 #Mine, but layout stuff adapted from https://pythonspot.com/pyqt5-form-layout/
 class Multidialog(QDialog):
     def __init__(self, screen, title, form_set, buttons=None, button_pressed=lambda:None):
-
         if screen in window.screens:
             self.screen = screen
             super(Multidialog, self).__init__(window.screens[screen])
@@ -463,3 +462,19 @@ class Multidialog(QDialog):
             if isinstance(w, QLineEdit): w.setText("")
             elif isinstance(w, QComboBox):
                 if w.count() > 0: w.setCurrentIndex(0)
+
+class ArrowButton(QToolButton):
+    arrow_map = {"UP":Qt.UpArrow, "DOWN":Qt.DownArrow, "LEFT":Qt.LeftArrow, "RIGHT":Qt.RightArrow}
+    def __init__(self, screen, x, y, width=0, height=0, arrow=None):
+        if screen in window.screens:
+            self.screen = screen
+            super(ArrowButton, self).__init__(window.screens[screen])
+        else:
+            self.screen = None
+
+        if arrow and arrow in ArrowButton.arrow_map: self.setArrowType(ArrowButton.arrow_map[arrow])
+
+        if width > 0 and height > 0: self.setGeometry(x, y, width, height)
+        else: self.move(x, y)
+
+        self.show()

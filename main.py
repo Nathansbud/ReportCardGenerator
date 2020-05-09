@@ -11,7 +11,7 @@ import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
 from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QTableWidgetItem
 
-from cuter import Button, Label, Dropdown, Textarea, Checkbox, Table, Multidialog, ColorButton
+from cuter import Button, Label, Dropdown, Textarea, Checkbox, Table, Multidialog, ColorButton, ArrowButton
 from cuter import app, window
 from grades import GradeSet, GradeType, GradeScheme, GradeScale, load_grades
 from preferences import prefs
@@ -26,10 +26,10 @@ Todo:
         - Async spreadsheet loading (modal dialog & QThread)
         - GUI so that user doesn't have to deal with weird text macros
         - Grade scheme tab rework
+        - Support for multi-paragraph reports (rn ~10 sentence dropdowns in the limit...)
     Medium:
         - updateTable desperately needs an overhaul
         - Format student dropdown for unfinished reports
-        - Support for multi-paragraph reports
         - Fix multidialogs to be...not a freaking mess (especially initialize settings)
         - UI overhaul (it's friggin ugly)
     Low:
@@ -337,8 +337,11 @@ class SentenceGroup:
         self.x = x
         self.y = y
 
-        self.checkbox = Checkbox("Reports", x, y)
-        self.label = Label("Reports", label, x + self.checkbox.width(), y)
+        self.arrow_up = ArrowButton("Reports", x, y, 10, 10, "UP")
+        self.arrow_down = ArrowButton("Reports", x, self.arrow_up.yh(), 10, 10, "DOWN")
+
+        self.checkbox = Checkbox("Reports", x + self.arrow_up.width(), y)
+        self.label = Label("Reports", label, self.checkbox.xw(), y)
         self.dropdown = Dropdown("Reports", self.label.xw(), y, [replace_generics(option) for option in options])
         self.dropdown.options = options
 
@@ -349,6 +352,8 @@ class SentenceGroup:
         self.edit_button = Button("Reports", "Edit", self.remove_button.xw(), y, False)
         if is_windows(): self.edit_button.setMaximumWidth(60)
 
+        self.arrow_up.clicked.connect(self.swapUp)
+        self.arrow_down.clicked.connect(self.swapDown)
         self.add_button.clicked.connect(self.addOption)
         self.remove_button.clicked.connect(self.removeOption)
         self.edit_button.clicked.connect(self.editOption)
@@ -356,8 +361,10 @@ class SentenceGroup:
         self.manual_delete = False
 
     def shift(self, x, y):
-        self.checkbox.move(x, y)
-        self.label.move(x + self.checkbox.width(), y)
+        self.arrow_up.move(x, y)
+        self.arrow_down.move(x, self.arrow_up.yh())
+        self.checkbox.move(self.arrow_up.xw(), y)
+        self.label.move(self.checkbox.xw(), y)
         self.dropdown.move(self.label.xw(), y)
         self.add_button.move(self.dropdown.xw(), y)
         self.remove_button.move(self.add_button.xw(), y)
@@ -371,6 +378,8 @@ class SentenceGroup:
         self.add_button.deleteLater()
         self.remove_button.deleteLater()
         self.edit_button.deleteLater()
+        self.arrow_up.deleteLater()
+        self.arrow_down.deleteLater()
 
     def addOption(self):
         text, ok = QInputDialog(window.getScreen("Reports")).getText(window.getScreen("Reports"), "Add Option", "Sentence", QLineEdit.Normal, "")
@@ -404,7 +413,6 @@ class SentenceGroup:
             sentences.remove(self)
             self.delete()
 
-
             for i in range(0, len(sentences)):
                 if sentences[i].index > self.index:
                     sentences[i].index -= 1
@@ -435,7 +443,7 @@ class SentenceGroup:
         else:
             self.addOption()
 
-    def write_sentences(self):
+    def write_sentences(self, bll=5):
         global sheet
         global class_dropdown
         global report_sheet
@@ -455,7 +463,7 @@ class SentenceGroup:
                 sheet[sentence_tab].delete_cols(self.index+1)
                 sheet.save(prefs.get_pref('report_sheet'))
         else:
-            buffer_list = ["", "", "", "", ""] #account for the fact that in removing, there are floating cells not part of options; have a 5-long buffer to manage that
+            buffer_list = [""]*bll #account for the fact that in removing, there are floating cells not part of options; have a 5-long buffer to manage that
             write_list = self.dropdown.options + buffer_list
             if prefs.get_pref('is_web'):
                 write_sheet(report_sheet, [write_list], mode="COLUMNS", r="{}!{}2:{}".format(sentence_tab, col, col + str(len(write_list) + 1)))
@@ -463,6 +471,56 @@ class SentenceGroup:
                 for i in range(0, len(write_list)):
                     sheet[sentence_tab][col+str(i+2)] = write_list[i]
                     sheet.save(prefs.get_pref('report_sheet'))
+
+    def swapDown(self):
+        global sentences
+        if not len(sentences) > 1:
+            return
+        else:
+            pos = sentences.index(self)
+            if not pos+1 == len(sentences):
+                #swap options and indices
+                lt, lb = len(self.dropdown.options), len(sentences[pos+1].dropdown.options)
+                sentences[pos+1].dropdown.options, self.dropdown.options = self.dropdown.options, sentences[pos+1].dropdown.options
+
+                self.formatDropdown()
+                sentences[pos + 1].formatDropdown()
+
+                def refresh():
+                    if prefs.get_pref("is_web"):
+                        self.write_sentences(bll=lb)
+                        sentences[pos+1].write_sentences(bll=lt)
+                    else:
+                        print("Excel shift up LUL")
+
+                Thread(target=refresh).start()
+
+    def swapUp(self):
+        global sentences
+        if not len(sentences) > 1:
+            return
+        else:
+            pos = sentences.index(self)
+            if pos > 0:
+                lb, lt = len(self.dropdown.options), len(sentences[pos-1].dropdown.options)
+                sentences[pos-1].dropdown.options, self.dropdown.options = self.dropdown.options, sentences[pos-1].dropdown.options
+
+                self.formatDropdown()
+                sentences[pos-1].formatDropdown()
+
+                def refresh():
+                    if prefs.get_pref("is_web"):
+                        self.write_sentences(bll=lt)
+                        sentences[pos-1].write_sentences(bll=lb)
+                    else:
+                        print("Excel shift up LUL")
+
+                Thread(target=refresh).start()
+
+    def formatDropdown(self):
+        self.dropdown.clear()
+        self.dropdown.addItems([replace_generics(option) for option in self.dropdown.options])
+
 
 def reformat_student_dropdown():
     global student_dropdown
@@ -597,9 +655,12 @@ def update_sentences():
 def add_sentence():
     global sentences
     global all_tab_pairs
+
+
     sentences.append(
         SentenceGroup(f"S{sentences.__len__()+1}:", 50, 125 + 25 * (sentences.__len__()+1), [], (sentences.__len__()))
     )
+
     cc = all_tab_pairs[sentence_tab()]['gridProperties']['columnCount']
     if cc < len(sentences):
         Thread(target=lambda: write_sheet(report_sheet, [], mode="COLUMNS", tab_id=all_tab_pairs[sentence_tab()]['sheetId'], option={"operation":"insert", "start":cc, "end":cc+1})).start()
@@ -993,6 +1054,7 @@ def setup():
     global preset_list
     global grade_rules
     global first_run
+    global advanced_set
 
     if prefs.get_pref('is_web'):
         all_tab_pairs = {tab['properties']['title']:tab['properties'] for tab in sheet.get('sheets')}
@@ -1022,7 +1084,7 @@ def setup():
     fill_class_data()
     class_dropdown.currentIndexChanged.connect(fill_class_data)
     student_dropdown.currentIndexChanged.connect(update_student)
-    toggle_advanced([preset_dropdown, preset_button, grade_button, open_setup_from_report_button], force=prefs.get_pref("advanced"))
+    toggle_advanced(advanced_set, force=prefs.get_pref("advanced"))
     first_run = False
 
 def setup_existing():
@@ -1180,6 +1242,8 @@ load_sheet_url_button.clicked.connect(setup_sheet_from_dialog)
 create_report_sheet_button.clicked.connect(lambda: window.switchScreen("Builder"))
 open_setup_from_builder_button.clicked.connect(lambda: window.switchScreen("Setup"))
 
+advanced_set = [preset_dropdown, preset_button, grade_button, open_setup_from_report_button, show_templates_button]
+
 report_area.textChanged.connect(local_save_report)
 submit_button.clicked.connect(send_report)
 generate_button.clicked.connect(generate_report)
@@ -1189,8 +1253,9 @@ reload_all_button.clicked.connect(setup_existing)
 add_sentence_button.clicked.connect(add_sentence)
 launch_report_sheet_button.clicked.connect(open_sheet)
 copy_button.clicked.connect(copy_report)
-toggle_advanced_button.clicked.connect(lambda: toggle_advanced([preset_dropdown,preset_button,grade_button,open_setup_from_report_button]))
+toggle_advanced_button.clicked.connect(lambda: toggle_advanced(advanced_set))
 help_button.clicked.connect(display_help)
+
 
 if __name__ == "__main__":
     if len(report_sheet) > 0: setup_existing()
