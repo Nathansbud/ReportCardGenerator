@@ -2,8 +2,10 @@ import os
 import re
 from threading import Thread
 from enum import Enum
+from copy import deepcopy
 import webbrowser
 import json
+
 
 import googleapiclient.errors
 import httplib2
@@ -34,11 +36,13 @@ Todo:
         - Format student dropdown for unfinished reports
         - Fix multidialogs to be...not a freaking mess (especially initialize settings)
         - UI overhaul (it's friggin ugly)
+        - Edit/Remove student options
     Low:
         - Use Sheets API file selector
         - oldText/cell saving, updating; Enter key tab down kinda buggy (hackish fix rn by doing enter behavior in validation functions)
         - setUI and all graphical stuff...is a damn mess
         - Support for RTF (italics)
+        - Rework student_index() to just use row offset?
     Very Low:
         - Rework editOption to use Multidialog
     
@@ -99,6 +103,9 @@ class_dropdown = Dropdown("Reports", class_label.xw(), class_label.y(), [tab for
 
 student_dropdown = Dropdown("Reports", 50, 75, [])
 student_dropdown.setObjectName("StudentDropdown")
+
+add_student_button = Button("Reports", "+", 0, student_dropdown.y(), False)
+add_student_button.x = student_dropdown.x() - add_student_button.width()
 
 open_grades_from_reports_button = Button("Reports", "Grades", student_dropdown.xw(), student_dropdown.y(), False)
 add_sentence_button = Button("Reports", "Add Sentence", open_grades_from_reports_button.xw(), student_dropdown.y(), False)
@@ -535,7 +542,6 @@ class SentenceGroup(QWidget):
                     self.write_sentences(bll=lt)
                     sentences[pos-1].write_sentences(bll=lb)
 
-
                 Thread(target=refresh).start()
 
     def formatDropdown(self):
@@ -761,6 +767,7 @@ def update_report(index=None):
     report_area.repaint()
 
 def student_index():
+    #todo: why is this not just student row offset?
     global student_dropdown
     global class_students
     idx = student_dropdown.currentIndex()
@@ -1055,6 +1062,7 @@ def setup_grades_table():
     else:
         grades_table.updateTable()
 
+
 def update_student(index=None):
     global sentences
 
@@ -1063,6 +1071,41 @@ def update_student(index=None):
     for sentence in sentences:
         sentence.dropdown.clear()
         sentence.dropdown.addItems([replace_generics(formatted) for formatted in sentence.dropdown.options])
+
+add_student_multidialog = Multidialog("Reports", "Add Student", [{"name":"First Name", "label":"Name", "type":"input"},
+                                                                 {"name":"Last Name", "label":"Surname", "type":"input"},
+                                                                 {"name":"Gender", "label":"Gender", "type":"dropdown", "data":["Male", "Female", "Non-Binary"]}])
+def add_student():
+    global class_students
+    global class_dropdown
+    add_student_multidialog.refresh()
+    if class_dropdown.count() > 0:
+        if add_student_multidialog.exec():
+            first_name = add_student_multidialog.elements['First Name']['object'].text()
+            last_name = add_student_multidialog.elements['Last Name']['object'].text()
+            gender = ["M", "F", "T"][add_student_multidialog.elements['Gender']['object'].currentIndex()]
+            if len(last_name) > 0 and len(first_name) > 0:
+                if len(class_students) > 0:
+                    add_grades = deepcopy(class_students[-1].grades)
+                    ro = class_students[-1].offset+1
+                    for g in add_grades: add_grades[g]['grade'] = ""
+                else:
+                    #handle this later by reading from sheet; too lazy rn
+                    add_grades = {}
+                    ro = row_offset
+                create_student = Student(first_name, last_name, gender, "", add_grades, class_dropdown.currentText(), ro)
+                class_students.append(create_student)
+                write_val = [first_name, last_name, gender, ""]
+                if prefs.get_pref("is_web"):
+                    Thread(target=lambda: write_sheet(prefs.get_pref("report_sheet"), [write_val], f"{class_dropdown.currentText()}!A{ro}:D{ro}", option={"operation":"write"})).start()
+                else:
+                    for i in range(len(write_val)):
+                        sheet[class_dropdown.currentText()].cell(row=ro, column=i+1).value = write_val[i]
+                    sheet.save(prefs.get_pref("report_sheet"))
+                student_dropdown.addItem(first_name+" "+last_name)
+    else:
+        print("no classes present")
+
 
 def local_save_report():
     global class_students
@@ -1284,6 +1327,7 @@ launch_report_sheet_button.clicked.connect(open_sheet)
 copy_button.clicked.connect(copy_report)
 toggle_advanced_button.clicked.connect(lambda: toggle_advanced(advanced_set))
 help_button.clicked.connect(display_help)
+add_student_button.clicked.connect(add_student)
 
 
 if __name__ == "__main__":
