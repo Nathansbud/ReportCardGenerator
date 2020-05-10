@@ -37,6 +37,11 @@ def get_class_json(vc_link="https://accounts.veracross.eu/asb/portals/login", us
         class_json = json.loads(class_inner[class_inner.find("["):class_inner.rfind("]")+1].replace("=&gt;", ":").replace(":nil", ":null"))
         classes[code]["students"] = class_json
     return classes
+
+def automate_dropdowns():
+    pass
+
+
 if __name__ == "__main__":
     print(get_class_json())
     pass

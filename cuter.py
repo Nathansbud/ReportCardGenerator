@@ -492,10 +492,13 @@ class ScrollBox(QScrollArea):
 
         for w in widgets:
             self.vbox.addWidget(w)
+            print(w)
         self.body.setLayout(self.vbox)
 
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setWidget(self.body)
         self.setGeometry(x, y, width, height)
         self.show()
+
+

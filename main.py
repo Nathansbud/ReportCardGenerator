@@ -9,7 +9,8 @@ import googleapiclient.errors
 import httplib2
 import openpyxl.utils.exceptions
 from PyQt5.QtGui import QColor, QStandardItem
-from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QTableWidgetItem, QWidget
+from PyQt5.QtWidgets import QLineEdit, QInputDialog, QFileDialog, QTableWidgetItem, QWidget, QHBoxLayout, QSizePolicy, QLayout
+from PyQt5.QtCore import QSize
 
 from cuter import Button, Label, Dropdown, Textarea, Checkbox, Table, Multidialog, ColorButton, ArrowButton, ScrollBox
 from cuter import app, window
@@ -90,6 +91,8 @@ user_template_tabs = []
 grade_rules = []
 user_templates = {}
 template_multidialog = None #defined in setup_template_multidialog
+scroll_box = None
+
 
 class_label = Label("Reports", "Class: ", window.width() / 2.5, 15)
 class_dropdown = Dropdown("Reports", class_label.xw(), class_label.y(), [tab for tab in class_tabs])
@@ -333,15 +336,10 @@ class SentenceGroup(QWidget):
     dialog = QInputDialog(window.getScreen("Reports"))
     dialog.setOption(QInputDialog.UseListViewForComboBoxItems)
     def __init__(self, label, x=None, y=None, options=None, index=None, in_layout=False):
-        super().__init__()
+        super().__init__(window.getScreen("Reports"))
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.index = index
-        #
-        # if not in_layout:
-        #     self.x = x
-        #     self.y = y
-        # else:
-        #     self.x = self.x()
-        #     self.y = self.y()
+        self.move(x, y)
 
         self.arrow_up = ArrowButton("Reports", x, y, 10, 10, "UP")
         self.arrow_down = ArrowButton("Reports", x, self.arrow_up.yh(), 10, 10, "DOWN")
@@ -349,6 +347,7 @@ class SentenceGroup(QWidget):
         self.checkbox = Checkbox("Reports", x + self.arrow_up.width(), y)
         self.label = Label("Reports", label, self.checkbox.xw(), y)
         self.dropdown = Dropdown("Reports", self.label.xw(), y, [replace_generics(option) for option in options])
+        self.dropdown.setFixedWidth(650)
         self.dropdown.options = options
 
         self.add_button = Button("Reports", "+", self.dropdown.xw(), y, False)
@@ -364,9 +363,28 @@ class SentenceGroup(QWidget):
         self.remove_button.clicked.connect(self.removeOption)
         self.edit_button.clicked.connect(self.editOption)
 
-        # self.setGeometry(x, y, self.edit_button.xw() - self.arrow_up.width(), self.arrow_down.yh() - self.arrow_up.y())
+        # self.setGeometry(x, y, self.edit_button.xw() - self.arrow_up.x(), 50)
+        #
+        # self.testLayout = QHBoxLayout()
+        # self.testLayout.addWidget(self.arrow_up)
+        # self.testLayout.addWidget(self.arrow_down)
+        # self.testLayout.addWidget(self.checkbox)
+        # self.testLayout.addWidget(self.label)
+        # self.testLayout.addWidget(self.dropdown)
+        # self.testLayout.addWidget(self.add_button)
+        # self.testLayout.addWidget(self.remove_button)
+        # self.testLayout.addWidget(self.edit_button)
+        # self.testLayout.setSpacing(5)
+        # self.setLayout(self.testLayout)
+        # self.show()
+        #
+        # self.arrow_up.setFixedWidth(10)
+        # self.arrow_up.setFixedHeight(10)
+        # self.arrow_down.setFixedWidth(10)
+        # self.arrow_down.setFixedHeight(10)
         self.manual_delete = False
 
+    def sizeHint(self): return QSize(self.edit_button.xw() - self.arrow_up.x(), self.arrow_down.yh() - self.arrow_up.y())
     def shift(self, x, y):
         self.arrow_up.move(x, y)
         self.arrow_down.move(x, self.arrow_up.yh())
@@ -387,6 +405,7 @@ class SentenceGroup(QWidget):
         self.edit_button.deleteLater()
         self.arrow_up.deleteLater()
         self.arrow_down.deleteLater()
+        self.deleteLater()
 
     def addOption(self):
         text, ok = QInputDialog(window.getScreen("Reports")).getText(window.getScreen("Reports"), "Add Option", "Sentence", QLineEdit.Normal, "")
@@ -516,12 +535,13 @@ class SentenceGroup(QWidget):
                     self.write_sentences(bll=lt)
                     sentences[pos-1].write_sentences(bll=lb)
 
+
                 Thread(target=refresh).start()
 
     def formatDropdown(self):
         self.dropdown.clear()
         self.dropdown.addItems([replace_generics(option) for option in self.dropdown.options])
-
+        self.repaint()
 
 def reformat_student_dropdown():
     global student_dropdown
@@ -628,6 +648,8 @@ def update_sentences():
     global sentences
     global class_dropdown
     global sheet
+    global scroll_box
+
     if len(sentence_tabs) > 0:
         for tab in sentence_tabs:
             if tab.endswith(class_dropdown.currentText().split("-")[0]):
@@ -649,8 +671,14 @@ def update_sentences():
                             )
                             count += 1
                         ro+=1
+
+                    # scroll_box = ScrollBox("Reports", preset_dropdown.x(), preset_dropdown.yh(), help_button.xw(), generate_button.y() - preset_dropdown.yh(), sentences)
                 populate_presets(current_sentences)
                 break
+        else:
+            for elem in sentences: elem.delete()
+            sentences = []
+
     update_tab_order()
 
 def add_sentence():
@@ -1257,9 +1285,6 @@ copy_button.clicked.connect(copy_report)
 toggle_advanced_button.clicked.connect(lambda: toggle_advanced(advanced_set))
 help_button.clicked.connect(display_help)
 
-
-# tests = [SentenceGroup(str(i), x = 10, y=preset_dropdown.yh()+10*i, options=["skrt", "skyaaat"], index=i) for i in range(5)]
-# scroll_box = ScrollBox("Reports", preset_dropdown.x(), preset_dropdown.yh(), help_button.xw(), generate_button.y() - preset_dropdown.yh(), tests)
 
 if __name__ == "__main__":
     if len(report_sheet) > 0: setup_existing()
