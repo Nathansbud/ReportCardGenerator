@@ -1,21 +1,31 @@
 from selenium import webdriver
 from selenium.common.exceptions import *
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait, Select
+
 import os
 import json
 
-# with open(os.path.join(os.path.dirname(__file__), "credentials", "veracross.json"), "r+") as jf: veracross = json.load(jf)
-def get_class_json(vc_link="https://accounts.veracross.eu/asb/portals/login", username="", password=""):
-    options = webdriver.ChromeOptions()
-    options.add_argument("headless")
-    browser = webdriver.Chrome(options=options)
+vc_link = "https://accounts.veracross.eu/asb/portals/login"
 
-    browser.get(vc_link)
-    #Login
-    browser.find_element_by_id("username").send_keys(username)
-    browser.find_element_by_id("password").send_keys(password)
-    browser.find_element_by_id("recaptcha").click()
-    browser.implicitly_wait(10)
-    #Get Classes
+def make_browser(headless=True):
+    options = webdriver.ChromeOptions()
+    if headless: options.add_argument("headless")
+    browser = webdriver.Chrome(options=options)
+    browser.implicitly_wait(3)
+    return browser
+
+def login(b, username, password):
+    b.find_element_by_id("username").send_keys(username)
+    b.find_element_by_id("password").send_keys(password)
+    try:
+        b.find_element_by_id("recaptcha").click()
+    except NoSuchElementException:
+        b.find_element_by_id("login-button").click()
+
+def get_class_json(username, password, browser=make_browser(False)):
+    login(browser, username, password)
     try:
         if browser.find_element_by_class_name("warning"):
             return False
@@ -38,10 +48,19 @@ def get_class_json(vc_link="https://accounts.veracross.eu/asb/portals/login", us
         classes[code]["students"] = class_json
     return classes
 
-def automate_dropdowns():
-    pass
-
-
-if __name__ == "__main__":
-    print(get_class_json())
-    pass
+def automate_dropdowns(browser, username, password, link, l=None):
+    browser.get(link)
+    login(browser, username, password)
+    student_list = browser.find_elements_by_class_name("page-grade-form")[1]
+    for student in student_list.find_elements_by_tag_name("li"):
+        student.click()
+        WebDriverWait(browser, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "a[data-student-profile]")))
+        dropdowns = browser.find_elements_by_tag_name("select")
+        for i, dropdown in enumerate(dropdowns):
+            dropdown = Select(dropdown)
+            if isinstance(l, list) and i < len(l):
+                try: dropdown.select_by_visible_text(l)
+                except NoSuchElementException: print("Value not in the dropdown")
+            else:
+                try: dropdown.select_by_visible_text("ME")
+                except NoSuchElementException: dropdown.select_by_visible_text("S")
