@@ -1,6 +1,7 @@
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QPushButton, QComboBox, QTextEdit, QColorDialog, QCheckBox,\
     QTableWidget, QTableWidgetItem, QHeaderView, QShortcut, QProgressDialog, QMainWindow, QDialog, QFormLayout, QDialogButtonBox,\
-    QLineEdit, QGroupBox, QVBoxLayout, QTableView, QStackedWidget, QToolButton, QScrollArea
+    QLineEdit, QGroupBox, QVBoxLayout, QHBoxLayout, QTableView, QStackedWidget, QToolButton, QScrollArea, QGridLayout, QSizePolicy
+
 from PyQt5.QtCore import Qt, QEvent, QRect
 from PyQt5.QtGui import QColor, QPalette, QFont, QBrush, QKeySequence, QTextCursor, QPainter, QPen
 
@@ -24,6 +25,7 @@ class Application(QApplication):
         if useStyle:
             self.changeStyle()
 
+    #this honestly needs a rework but eh
     def changeStyle(self):
         if self.useStyle:
             self.setStyleSheet(f'''
@@ -49,9 +51,10 @@ class Window(QMainWindow):
         self.addScreen("Grades", Screen("Grade Editor"))
         self.addScreen("Setup", Screen("Report Sheet Setup"))
         self.addScreen("Builder", Screen("Report Sheet Builder"))
+        self.addScreen("Test", Screen("Testing Grounds"))
 
         self.show()
-        self.switchScreen("Setup")
+
         self.setUI(bg_color=prefs.get_pref('bg_color') if not None else "#000080", txt_color=prefs.get_pref('txt_color') if not None else "#ffffff")
 
     def addScreen(self, name, screen):
@@ -479,26 +482,71 @@ class ArrowButton(QToolButton):
 
         self.show()
 
-class ScrollBox(QScrollArea):
-    def __init__(self, screen, x, y, width, height, widgets):
+
+"""SCROLL BOX HELL"""
+
+# class ScrollBoxTest(QVBoxLayout):
+#     def __init__(self, screen):
+#         if screen in window.screens:
+#             self.screen = screen
+#             super(ScrollBoxTest, self).__init__(window.screens[screen])
+#         else:
+#             self.screen = None
+#
+#
+#         self.groupBox = QGroupBox()
+#         self.formLayout = QFormLayout()
+#
+#         for i in range(20):
+#             self.formLayout.addRow(QLabel("Label "+str(i+1)), QPushButton("Button "+str(i+1)))
+#
+#         self.groupBox.setLayout(self.formLayout)
+#
+#         self.scrollbox = QScrollArea()
+#         self.scrollbox.setWidget(self.groupBox)
+#         self.scrollbox.setWidgetResizable(True)
+#         self.scrollbox.setFixedHeight(400)
+#         self.addWidget(self.scrollbox)
+
+class ScrollBox(QVBoxLayout):
+    def __init__(self, screen):
         if screen in window.screens:
             self.screen = screen
             super(ScrollBox, self).__init__(window.screens[screen])
         else:
             self.screen = None
 
-        self.body = QWidget()
-        self.vbox = QVBoxLayout()
+        self.sw = QWidget()
+        self.layout = QVBoxLayout()
 
-        for w in widgets:
-            self.vbox.addWidget(w)
-            print(w)
-        self.body.setLayout(self.vbox)
+        for i in range(20):
+            childLayout = QHBoxLayout()
+            # childLayout.addWidget(tpb)
+            c = QComboBox()
+            c.addItems(["1", "2", "3"])
+            childLayout.addWidget(c)
+            childLayout.addWidget(QPushButton("+"))
+            childLayout.addWidget(QPushButton("-"))
+            childLayout.addWidget(QPushButton("Edit"))
 
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.setWidget(self.body)
-        self.setGeometry(x, y, width, height)
-        self.show()
+            self.layout.addLayout(childLayout)
 
+        self.sw.setLayout(self.layout)
+
+        self.scrollbox = QScrollArea()
+        self.scrollbox.setWidget(self.sw)
+        self.scrollbox.setWidgetResizable(True)
+        self.scrollbox.setFixedHeight(400)
+        self.addWidget(self.scrollbox)
+
+
+    def updateContent(self):
+        for i in reversed(range(self.layout.count())):
+            print(i)
+            print(self.layout.takeAt(i).deleteLater())
+            #this leads to a bunch of ghost objects???
+
+
+test_box = ScrollBox("Test")
+test_box.updateContent()
 

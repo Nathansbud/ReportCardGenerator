@@ -48,6 +48,7 @@ Todo:
     
 Bugs: 
     High:
+        - Things highly crash if there's no sentence tab and the user tries to hit Add Sentence button;
     Medium:
     Low:
         - Removed columns aren't removed unless sandwiched
@@ -696,6 +697,8 @@ def add_sentence():
         SentenceGroup(f"S{sentences.__len__()+1}:", 50, 125 + 25 * (sentences.__len__()+1), [], (sentences.__len__()))
     )
 
+    print(sentence_tab())
+    print(all_tab_pairs)
     cc = all_tab_pairs[sentence_tab()]['gridProperties']['columnCount']
     if cc < len(sentences):
         Thread(target=lambda: write_sheet(report_sheet, [], mode="COLUMNS", tab_id=all_tab_pairs[sentence_tab()]['sheetId'], option={"operation":"insert", "start":cc, "end":cc+1})).start()
