@@ -1,7 +1,7 @@
 __pycache__/
 .idea/
 credentials/
-prefs/config.json
+**/config.json
 *.xlsx
 venv/
 .eggs/

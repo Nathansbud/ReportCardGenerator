@@ -4,9 +4,10 @@ import re
 import darkdetect
 
 def index_to_column(idx):
-    major = chr(65 + floor(idx / 26 - 1)) if idx > 25 else ""
+    supermajor = chr(65 + floor((idx - 26) / (26**2) - 1)) if (idx > 26**2 + 25) else ""
+    major = chr(65 + (floor((idx / 26 - 1)) % 26)) if idx > 25 else ""
     minor = chr(65 + idx % 26)
-    return str(major + minor)
+    return str(supermajor + major + minor)
 
 def is_macos(): return platform.system().startswith("Darwin")
 def is_windows(): return platform.system().startswith("Windows")

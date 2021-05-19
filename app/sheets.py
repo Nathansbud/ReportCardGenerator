@@ -34,6 +34,8 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 sheets_token = make_token(scope=SCOPES, cred_name="sheets")
 service = build('sheets', 'v4', credentials=sheets_token)
 
+
+
 def get_sheet(sheet, r='', mode='ROWS'):
     if len(r) > 0:
         return service.spreadsheets().values().get(spreadsheetId=sheet, range=r, majorDimension=mode).execute()

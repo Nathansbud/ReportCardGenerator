@@ -542,8 +542,8 @@ class ScrollBox(QVBoxLayout):
 
     def updateContent(self):
         for i in reversed(range(self.layout.count())):
-            print(i)
-            print(self.layout.takeAt(i).deleteLater())
+            # print(i)
+            self.layout.takeAt(i).deleteLater()
             #this leads to a bunch of ghost objects???
 
 
